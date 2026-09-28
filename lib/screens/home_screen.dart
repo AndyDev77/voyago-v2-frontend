@@ -64,6 +64,75 @@ class HomeScreen extends ConsumerWidget {
             // Hero section
             _HeroSection(onStart: () => context.go('/swipe')),
 
+            const SizedBox(height: 20),
+
+            // Map & Dashboard banner
+            GestureDetector(
+              onTap: () => context.go('/itinerary'),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      VoyagoColors.primary.withValues(alpha: 0.15),
+                      VoyagoColors.blue.withValues(alpha: 0.08),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: VoyagoColors.primary.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: VoyagoColors.primary,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: VoyagoColors.primary.withValues(alpha: 0.4),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.map_rounded, color: Colors.white, size: 26),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Tableau de Bord & Carte',
+                            style: TextStyle(
+                              color: VoyagoColors.text,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Carte Leaflet interactive, météo en direct et itinéraire',
+                            style: TextStyle(
+                              color: VoyagoColors.muted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios, color: VoyagoColors.primary, size: 14),
+                  ],
+                ),
+              ),
+            ),
+
             const SizedBox(height: 28),
 
             // Cards grid

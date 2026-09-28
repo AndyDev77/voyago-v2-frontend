@@ -1,15 +1,22 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import '../models/trip.dart';
 import '../models/poi.dart';
+import '../models/day_weather.dart';
+import '../providers/auth_provider.dart';
 import '../providers/trips_provider.dart';
+import '../services/live_weather_service.dart';
+import '../services/map_ambiance_service.dart';
 import '../theme.dart';
-import '../widgets/poi_card.dart';
-import '../widgets/weather_strip.dart';
+import '../widgets/weather_overlay.dart';
+import '../widgets/itinerary_bottom_sheet.dart';
+import '../widgets/map_poi_pin.dart';
+import '../widgets/traveler_drawer.dart';
+import '../widgets/map_ambiance_overlay.dart';
 
 class ItineraryScreen extends ConsumerStatefulWidget {
   final String tripId;
@@ -21,43 +28,165 @@ class ItineraryScreen extends ConsumerStatefulWidget {
   ConsumerState<ItineraryScreen> createState() => _ItineraryScreenState();
 }
 
-class _ItineraryScreenState extends ConsumerState<ItineraryScreen> {
-  int _selectedDay = 1;
-  bool _showMap = false;
+class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
+    with TickerProviderStateMixin {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final MapController _mapController = MapController();
+  final TextEditingController _searchCtrl = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+
+  int _selectedDay = 1;
+  int? _activePoiIndex;
+  Trip? _currentTrip;
+  String _activeCityName = '';
+  List<DayWeather>? _dynamicWeather;
+  List<CityLocation> _searchResults = [];
+  bool _isSearching = false;
+  bool _showWeatherCard = true;
+  LatLng? _currentCenter;
+  Timer? _ambianceRefreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.trip != null) {
+      _currentTrip = widget.trip;
+      _activeCityName = widget.trip!.destination;
+    }
+    // Mise à jour automatique minute par minute de l'ambiance solaire (comme hellobarber)
+    _ambianceRefreshTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) {
+        if (mounted) setState(() {});
+      },
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _bootstrapLiveWeather();
+    });
+  }
+
+  Future<void> _bootstrapLiveWeather() async {
+    final trip = _currentTrip;
+    if (trip != null) {
+      final pois = trip.poisForDay(1);
+      final lat = pois.isNotEmpty ? pois.first.lat : 48.8566;
+      final lng = pois.isNotEmpty ? pois.first.lng : 2.3522;
+      final weather = await LiveWeatherService.instance.fetchWeather(lat, lng);
+      if (mounted) {
+        setState(() => _dynamicWeather = weather);
+      }
+    }
+  }
 
   @override
   void dispose() {
+    _ambianceRefreshTimer?.cancel();
     _mapController.dispose();
+    _searchCtrl.dispose();
+    _searchFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _onSearchChanged(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+    setState(() => _isSearching = true);
+    final results = await LiveWeatherService.instance.searchCities(query);
+    if (mounted) {
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
+    }
+  }
+
+  Future<void> _selectCity(CityLocation city) async {
+    final target = LatLng(city.lat, city.lng);
+    setState(() {
+      _currentCenter = target;
+      _activeCityName = city.name;
+      _searchResults = [];
+      _isSearching = false;
+      _searchCtrl.text = city.displayName;
+    });
+
+    // Move map to city coordinates
+    _mapController.move(target, 13.5);
+
+    // Fetch dynamic live weather
+    final weatherList = await LiveWeatherService.instance.fetchWeather(city.lat, city.lng);
+    if (mounted) {
+      setState(() {
+        _dynamicWeather = weatherList;
+        _showWeatherCard = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.wb_sunny, color: Colors.amber, size: 18),
+              const SizedBox(width: 8),
+              Text('Météo actualisée pour ${city.name}'),
+            ],
+          ),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.trip != null) {
-      return _buildItinerary(widget.trip!);
+    if (_currentTrip != null) {
+      return _buildScreen(_currentTrip!);
+    }
+
+    if (widget.tripId.isEmpty) {
+      // Default demo / Paris explorer view if no tripId passed
+      return _buildScreen(_createDemoTrip());
     }
 
     final tripAsync = ref.watch(tripDetailProvider(widget.tripId));
     return tripAsync.when(
-      data: _buildItinerary,
+      data: (trip) {
+        _currentTrip = trip;
+        if (_activeCityName.isEmpty) _activeCityName = trip.destination;
+        return _buildScreen(trip);
+      },
       loading: () => Scaffold(
         backgroundColor: VoyagoColors.background,
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => context.go('/'),
-          ),
-        ),
-        body: const Center(
+        body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(color: VoyagoColors.primary),
-              SizedBox(height: 16),
-              Text(
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: VoyagoColors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: VoyagoColors.primary,
+                    strokeWidth: 3,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
                 'Chargement de l\'itinéraire...',
-                style: TextStyle(color: VoyagoColors.muted),
+                style: TextStyle(
+                  color: VoyagoColors.muted,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -65,20 +194,13 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen> {
       ),
       error: (e, _) => Scaffold(
         backgroundColor: VoyagoColors.background,
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => context.go('/'),
-          ),
-          title: const Text('Erreur'),
-        ),
         body: Center(
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(32),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('😕', style: TextStyle(fontSize: 48)),
+                const Text('🧭', style: TextStyle(fontSize: 48)),
                 const SizedBox(height: 16),
                 const Text(
                   'Impossible de charger l\'itinéraire',
@@ -92,13 +214,24 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen> {
                 const SizedBox(height: 8),
                 Text(
                   e.toString(),
-                  style: const TextStyle(color: VoyagoColors.muted, fontSize: 12),
+                  style: const TextStyle(
+                    color: VoyagoColors.muted,
+                    fontSize: 12,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
-                ElevatedButton(
+                ElevatedButton.icon(
                   onPressed: () => ref.invalidate(tripDetailProvider(widget.tripId)),
-                  child: const Text('Réessayer'),
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Réessayer'),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () {
+                    setState(() => _currentTrip = _createDemoTrip());
+                  },
+                  child: const Text('Explorer la carte en mode démo'),
                 ),
               ],
             ),
@@ -108,451 +241,608 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen> {
     );
   }
 
-  Widget _buildItinerary(Trip trip) {
+  Widget _buildScreen(Trip trip) {
     final dayPois = trip.poisForDay(_selectedDay);
+    final center = _currentCenter ??
+        (dayPois.isNotEmpty
+            ? LatLng(dayPois.first.lat, dayPois.first.lng)
+            : const LatLng(48.8566, 2.3522));
+
+    // Dynamic weather if city was searched, else trip's weather
+    DayWeather? activeWeather;
+    if (_dynamicWeather != null && _dynamicWeather!.isNotEmpty) {
+      activeWeather = _dynamicWeather![
+          (_selectedDay - 1).clamp(0, _dynamicWeather!.length - 1)];
+    } else if (trip.weather.isNotEmpty) {
+      activeWeather = trip.weather[
+          (_selectedDay - 1).clamp(0, trip.weather.length - 1)];
+    }
+
+    // Résolution 100% automatique Jour / Nuit / Heure Dorée / Crépuscule (comme hellobarber)
+    final ambiance = MapAmbiance.resolve(
+      center: center,
+      weatherCode: activeWeather?.weatherCode,
+    );
+
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: VoyagoColors.background,
-      body: NestedScrollView(
-        headerSliverBuilder: (context, _) => [
-          SliverAppBar(
-            expandedHeight: 200,
-            pinned: true,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go('/');
-                }
-              },
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.share_outlined),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Partage bientôt disponible')),
-                  );
+      drawer: TravelerDrawer(
+        currentTripId: trip.id,
+        onTripSelected: (newTrip) {
+          setState(() {
+            _currentTrip = newTrip;
+            _activeCityName = newTrip.destination;
+            _selectedDay = 1;
+            _activePoiIndex = null;
+            _dynamicWeather = null;
+            _searchCtrl.clear();
+          });
+          final pois = newTrip.poisForDay(1);
+          if (pois.isNotEmpty) {
+            final target = LatLng(pois.first.lat, pois.first.lng);
+            setState(() => _currentCenter = target);
+            _mapController.move(target, 13.5);
+          }
+        },
+      ),
+      body: Stack(
+        children: [
+          // === 1. FULL-SCREEN LEAFLET MAP (DYNAMIQUE JOUR / NUIT 100% GRATUIT) ===
+          Positioned.fill(
+            child: FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: center,
+                initialZoom: 13.5,
+                maxZoom: 18,
+                minZoom: 3,
+                onTap: (_, __) {
+                  setState(() {
+                    _activePoiIndex = null;
+                    _searchResults = [];
+                    _isSearching = false;
+                  });
+                  _searchFocus.unfocus();
                 },
               ),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: _buildHeader(trip),
-            ),
-          ),
-        ],
-        body: Column(
-          children: [
-            // Day tabs
-            _DayTabBar(
-              totalDays: trip.durationDays,
-              selectedDay: _selectedDay,
-              onDaySelected: (d) => setState(() => _selectedDay = d),
-            ),
+              children: [
+                // Tuiles dynamiques Jour / Nuit 100% gratuites sans API Key (OpenStreetMap / ArcGIS)
+                TileLayer(
+                  key: ValueKey('${ambiance.phase}_${ambiance.tileUrlTemplate}'),
+                  urlTemplate: ambiance.tileUrlTemplate,
+                  userAgentPackageName: 'com.voyago.app',
+                  maxNativeZoom: 19,
+                  panBuffer: 1,
+                  tileBuilder: ambiance.tileColorFilter == null
+                      ? null
+                      : (context, tileWidget, tile) => ColorFiltered(
+                          colorFilter: ambiance.tileColorFilter!,
+                          child: tileWidget,
+                        ),
+                ),
+                RichAttributionWidget(
+                  attributions: [
+                    TextSourceAttribution(ambiance.attribution),
+                  ],
+                ),
 
-            // Weather strip
-            if (trip.weather.isNotEmpty)
-              WeatherStrip(
-                weather: trip.weather,
-                selectedDay: _selectedDay,
-              ),
-
-            // Map / List toggle
-            _ViewToggle(
-              showMap: _showMap,
-              onToggle: (v) => setState(() => _showMap = v),
-            ),
-
-            // Content
-            Expanded(
-              child: _showMap
-                  ? _buildMap(dayPois)
-                  : _buildList(dayPois),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatDate(DateTime dt) {
-    try {
-      return DateFormat('MMM yyyy', 'fr').format(dt);
-    } catch (_) {
-      return '${dt.month}/${dt.year}';
-    }
-  }
-
-  Widget _buildHeader(Trip trip) {
-    final dateStr = _formatDate(trip.createdAt);
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [VoyagoColors.background, VoyagoColors.surface],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 80, 20, 20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            trip.destination,
-            style: const TextStyle(
-              color: VoyagoColors.text,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _InfoChip(label: dateStr, icon: '📅'),
-              const SizedBox(width: 8),
-              _InfoChip(label: '${trip.durationDays} jours', icon: '🗓'),
-              const SizedBox(width: 8),
-              _InfoChip(label: _paceLabel(trip.pace), icon: ''),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildList(List<POI> pois) {
-    if (pois.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('📍', style: TextStyle(fontSize: 40)),
-            SizedBox(height: 12),
-            Text(
-              'Aucun point d\'intérêt pour ce jour',
-              style: TextStyle(color: VoyagoColors.muted),
-            ),
-          ],
-        ),
-      );
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 32),
-      itemCount: pois.length,
-      itemBuilder: (_, i) => PoiCard(poi: pois[i], index: i),
-    );
-  }
-
-  Widget _buildMap(List<POI> pois) {
-    if (pois.isEmpty) {
-      return const Center(
-        child: Text(
-          'Aucun point d\'intérêt à afficher',
-          style: TextStyle(color: VoyagoColors.muted),
-        ),
-      );
-    }
-
-    final center = LatLng(pois.first.lat, pois.first.lng);
-
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: center,
-        initialZoom: 13,
-      ),
-      children: [
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.voyago.app',
-        ),
-        MarkerLayer(
-          markers: pois.asMap().entries.map((entry) {
-            final i = entry.key;
-            final poi = entry.value;
-            return Marker(
-              point: LatLng(poi.lat, poi.lng),
-              width: 40,
-              height: 40,
-              child: GestureDetector(
-                onTap: () => _showPoiPopup(context, poi, i),
-                child: CircleAvatar(
-                  backgroundColor: VoyagoColors.primary,
-                  radius: 18,
-                  child: Text(
-                    '${i + 1}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
+                // Route polyline connecting the day's POIs
+                if (dayPois.length >= 2)
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: dayPois
+                            .map((p) => LatLng(p.lat, p.lng))
+                            .toList(),
+                        strokeWidth: 3.5,
+                        color: ambiance.isNight
+                            ? VoyagoColors.primary.withValues(alpha: 0.9)
+                            : VoyagoColors.primary,
+                        pattern: const StrokePattern.dotted(),
+                      ),
+                    ],
                   ),
+
+                // POI pins on map
+                MarkerLayer(
+                  markers: dayPois.asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final poi = entry.value;
+                    return Marker(
+                      point: LatLng(poi.lat, poi.lng),
+                      width: _activePoiIndex == i ? 180 : 46,
+                      height: _activePoiIndex == i ? 80 : 46,
+                      child: MapPoiPin(
+                        poi: poi,
+                        index: i,
+                        isActive: _activePoiIndex == i,
+                        onTap: () {
+                          setState(() {
+                            _activePoiIndex =
+                                _activePoiIndex == i ? null : i;
+                          });
+                          _mapController.move(
+                            LatLng(poi.lat, poi.lng),
+                            15,
+                          );
+                        },
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+
+          // === CALQUE ATMOSPHÉRIQUE D'AMBIANCE (COMME HELLOBARBER, 100% IGNOREPOINTER) ===
+          Positioned.fill(
+            child: MapAmbianceOverlay(
+              ambiance: ambiance,
+              weather: activeWeather,
+              topInset: MediaQuery.of(context).padding.top,
+            ),
+          ),
+
+          // === 2. TOP FLOATING SEARCH & MENU BAR ===
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).padding.top + 8,
+                left: 12,
+                right: 12,
+                bottom: 8,
+              ),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    VoyagoColors.background.withValues(alpha: 0.95),
+                    VoyagoColors.background.withValues(alpha: 0.0),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
               ),
-            );
-          }).toList(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      // 3-bars hamburger menu button (menu en 3 traits en haut à gauche)
+                      _MapButton(
+                        icon: Icons.menu,
+                        onTap: () {
+                          _scaffoldKey.currentState?.openDrawer();
+                        },
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Floating Search Bar (from HTML template)
+                      Expanded(
+                        child: Container(
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: VoyagoColors.surface.withValues(alpha: 0.95),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: VoyagoColors.cardBorder),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.25),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 10),
+                                child: Icon(
+                                  Icons.search,
+                                  color: VoyagoColors.muted,
+                                  size: 20,
+                                ),
+                              ),
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchCtrl,
+                                  focusNode: _searchFocus,
+                                  onChanged: _onSearchChanged,
+                                  onSubmitted: (q) async {
+                                    if (_searchResults.isNotEmpty) {
+                                      _selectCity(_searchResults.first);
+                                    } else if (q.trim().isNotEmpty) {
+                                      final list = await LiveWeatherService.instance.searchCities(q);
+                                      if (list.isNotEmpty) _selectCity(list.first);
+                                    }
+                                  },
+                                  style: const TextStyle(
+                                    color: VoyagoColors.text,
+                                    fontSize: 13,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: _activeCityName.isNotEmpty
+                                        ? 'Rechercher lieu à $_activeCityName...'
+                                        : 'Rechercher une ville, lieu...',
+                                    hintStyle: TextStyle(
+                                      color: VoyagoColors.muted.withValues(alpha: 0.7),
+                                      fontSize: 13,
+                                    ),
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                                  ),
+                                ),
+                              ),
+                              if (_isSearching)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 10),
+                                  child: SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: VoyagoColors.primary,
+                                    ),
+                                  ),
+                                )
+                              else if (_searchCtrl.text.isNotEmpty)
+                                GestureDetector(
+                                  onTap: () {
+                                    _searchCtrl.clear();
+                                    setState(() {
+                                      _searchResults = [];
+                                      _isSearching = false;
+                                    });
+                                  },
+                                  child: const Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 8),
+                                    child: Icon(Icons.close, color: VoyagoColors.muted, size: 18),
+                                  ),
+                                )
+                              else
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  child: Icon(
+                                    Icons.tune,
+                                    color: VoyagoColors.primary.withValues(alpha: 0.8),
+                                    size: 18,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // User profile button / avatar
+                      GestureDetector(
+                        onTap: () => context.go('/profile'),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: VoyagoColors.surface.withValues(alpha: 0.95),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: VoyagoColors.primary.withValues(alpha: 0.6),
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.25),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            user?.avatarDisplay ?? '👤',
+                            style: const TextStyle(fontSize: 18),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Search Suggestions Dropdown
+                  if (_searchResults.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      decoration: BoxDecoration(
+                        color: VoyagoColors.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: VoyagoColors.cardBorder),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.4),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: _searchResults.take(4).map((city) {
+                          return ListTile(
+                            dense: true,
+                            leading: const Icon(
+                              Icons.location_city,
+                              color: VoyagoColors.primary,
+                              size: 18,
+                            ),
+                            title: Text(
+                              city.displayName,
+                              style: const TextStyle(
+                                color: VoyagoColors.text,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            trailing: const Icon(
+                              Icons.arrow_forward_ios,
+                              color: VoyagoColors.muted,
+                              size: 12,
+                            ),
+                            onTap: () => _selectCity(city),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // === 3. DYNAMIC WEATHER OVERLAY (TRANSPARENT, SANS FOND OPAQUE) ===
+          if (activeWeather != null && _showWeatherCard)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 58,
+              left: 0,
+              right: 0,
+              child: GestureDetector(
+                onDoubleTap: () => setState(() => _showWeatherCard = false),
+                child: WeatherOverlay(
+                  weather: activeWeather,
+                  dayNumber: _selectedDay,
+                  ambianceLabel: ambiance.phaseLabel,
+                  ambianceIcon: ambiance.phaseIcon,
+                  aiTip: getWeatherAiTip(activeWeather),
+                ),
+              ),
+            ),
+
+          // === 4. MAP CONTROLS (Right Side) ===
+          Positioned(
+            right: 16,
+            bottom: MediaQuery.of(context).size.height * 0.46 + 12,
+            child: Column(
+              children: [
+                _MapButton(
+                  icon: Icons.my_location,
+                  onTap: () {
+                    if (dayPois.isNotEmpty) {
+                      _mapController.move(
+                        LatLng(dayPois.first.lat, dayPois.first.lng),
+                        14,
+                      );
+                    } else {
+                      _mapController.move(center, 14);
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: VoyagoColors.surface.withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: VoyagoColors.cardBorder),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      _MapButton(
+                        icon: Icons.add,
+                        onTap: () {
+                          final zoom = _mapController.camera.zoom;
+                          _mapController.move(
+                            _mapController.camera.center,
+                            (zoom + 1).clamp(3, 18),
+                          );
+                        },
+                        noBg: true,
+                      ),
+                      Container(
+                        width: 28,
+                        height: 1,
+                        color: VoyagoColors.cardBorder,
+                      ),
+                      _MapButton(
+                        icon: Icons.remove,
+                        onTap: () {
+                          final zoom = _mapController.camera.zoom;
+                          _mapController.move(
+                            _mapController.camera.center,
+                            (zoom - 1).clamp(3, 18),
+                          );
+                        },
+                        noBg: true,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // === 5. ITINERARY BOTTOM SHEET ===
+          ItineraryBottomSheet(
+            pois: dayPois,
+            selectedDay: _selectedDay,
+            totalDays: trip.durationDays,
+            destination: _activeCityName.isNotEmpty ? _activeCityName : trip.destination,
+            onDayChanged: (day) {
+              setState(() {
+                _selectedDay = day;
+                _activePoiIndex = null;
+              });
+              final newPois = trip.poisForDay(day);
+              if (newPois.isNotEmpty) {
+                final target = LatLng(newPois.first.lat, newPois.first.lng);
+                setState(() => _currentCenter = target);
+                _mapController.move(target, 13.5);
+              }
+            },
+            onPoiTap: (poi) {
+              final idx = dayPois.indexOf(poi);
+              setState(() => _activePoiIndex = idx >= 0 ? idx : null);
+              _mapController.move(LatLng(poi.lat, poi.lng), 15);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Trip _createDemoTrip() {
+    return Trip(
+      id: 'demo-paris',
+      userId: 'guest',
+      destination: 'Paris',
+      durationDays: 3,
+      pace: 'modéré',
+      budget: 'moyen',
+      transports: ['marche', 'métro'],
+      interests: ['gastronomie', 'culture', 'art'],
+      pois: [
+        const POI(
+          name: 'Café de Flore',
+          description: 'Café littéraire historique de Saint-Germain-des-Prés.',
+          category: 'gastronomie',
+          imageQuery: 'Cafe de Flore',
+          lat: 48.8541,
+          lng: 2.3328,
+          day: 1,
+          order: 1,
+          durationMinutes: 45,
+          rating: 4.8,
+          reviewsCount: 2400,
+          insiderTip: 'Dégustez leur fameux chocolat chaud à l\'ancienne.',
+          imageUrl:
+              'https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?w=600&auto=format&fit=crop&q=80',
+        ),
+        const POI(
+          name: 'Musée du Louvre',
+          description: 'Le plus grand musée d\'art et d\'antiquités du monde.',
+          category: 'culture',
+          imageQuery: 'Louvre Museum',
+          lat: 48.8606,
+          lng: 2.3376,
+          day: 1,
+          order: 2,
+          durationMinutes: 120,
+          rating: 4.9,
+          reviewsCount: 12400,
+          insiderTip: 'Entrez par le Carrousel du Louvre pour éviter la file principale.',
+          imageUrl:
+              'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=600&auto=format&fit=crop&q=80',
+        ),
+        const POI(
+          name: 'Jardin des Tuileries',
+          description: 'Flânerie royale au cœur de la capitale.',
+          category: 'nature',
+          imageQuery: 'Tuileries Garden',
+          lat: 48.8634,
+          lng: 2.3275,
+          day: 1,
+          order: 3,
+          durationMinutes: 60,
+          rating: 4.7,
+          reviewsCount: 5600,
+          insiderTip: 'Profitez des chaises vertes au bord du grand bassin octogonal.',
+          imageUrl:
+              'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=600&auto=format&fit=crop&q=80',
         ),
       ],
-    );
-  }
-
-  void _showPoiPopup(BuildContext context, POI poi, int index) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: VoyagoColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: VoyagoColors.primary,
-                  child: Text(
-                    '${index + 1}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    poi.name,
-                    style: const TextStyle(
-                      color: VoyagoColors.text,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              poi.description,
-              style: const TextStyle(color: VoyagoColors.muted, fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _Chip(label: poi.category, color: VoyagoColors.blue),
-                const SizedBox(width: 8),
-                _Chip(
-                  label: poi.durationMinutes < 60
-                      ? '${poi.durationMinutes} min'
-                      : '${poi.durationMinutes ~/ 60}h',
-                  color: VoyagoColors.primary,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
+      weather: [
+        const DayWeather(
+          date: 'Jour 1',
+          icon: '⛅',
+          summary: 'Partiellement nuageux',
+          weatherCode: 1,
+          tempMax: 18.0,
+          tempMin: 12.0,
         ),
-      ),
+        const DayWeather(
+          date: 'Jour 2',
+          icon: '☀️',
+          summary: 'Ensoleillé',
+          weatherCode: 0,
+          tempMax: 21.0,
+          tempMin: 14.0,
+        ),
+        const DayWeather(
+          date: 'Jour 3',
+          icon: '🌦️',
+          summary: 'Averses éparses',
+          weatherCode: 61,
+          tempMax: 17.0,
+          tempMin: 13.0,
+        ),
+      ],
+      likes: 42,
+      isPublic: false,
+      createdAt: DateTime.now(),
     );
-  }
-
-  String _paceLabel(String pace) {
-    switch (pace.toLowerCase()) {
-      case 'tranquille':
-        return '🚶 Tranquille';
-      case 'equilibre':
-      case 'équilibré':
-        return '🚴 Équilibré';
-      case 'intensif':
-        return '🏃 Intensif';
-      default:
-        return pace;
-    }
   }
 }
 
-class _DayTabBar extends StatelessWidget {
-  final int totalDays;
-  final int selectedDay;
-  final ValueChanged<int> onDaySelected;
+/// Circular floating map button
+class _MapButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool noBg;
 
-  const _DayTabBar({
-    required this.totalDays,
-    required this.selectedDay,
-    required this.onDaySelected,
+  const _MapButton({
+    required this.icon,
+    required this.onTap,
+    this.noBg = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 48,
-      color: VoyagoColors.surface,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        itemCount: totalDays,
-        itemBuilder: (_, i) {
-          final day = i + 1;
-          final isSelected = day == selectedDay;
-          return GestureDetector(
-            onTap: () => onDaySelected(day),
-            child: Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: isSelected ? VoyagoColors.primary : Colors.transparent,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isSelected ? VoyagoColors.primary : VoyagoColors.cardBorder,
-                ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: noBg
+            ? null
+            : BoxDecoration(
+                color: VoyagoColors.surface.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: VoyagoColors.cardBorder),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              alignment: Alignment.center,
-              child: Text(
-                'Jour $day',
-                style: TextStyle(
-                  color: isSelected ? Colors.white : VoyagoColors.muted,
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ViewToggle extends StatelessWidget {
-  final bool showMap;
-  final ValueChanged<bool> onToggle;
-
-  const _ViewToggle({required this.showMap, required this.onToggle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: VoyagoColors.background,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () => onToggle(false),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: !showMap ? VoyagoColors.primary : VoyagoColors.surface,
-                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
-                ),
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.list,
-                      color: !showMap ? Colors.white : VoyagoColors.muted,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Liste',
-                      style: TextStyle(
-                        color: !showMap ? Colors.white : VoyagoColors.muted,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => onToggle(true),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: showMap ? VoyagoColors.primary : VoyagoColors.surface,
-                  borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
-                ),
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.map_outlined,
-                      color: showMap ? Colors.white : VoyagoColors.muted,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Carte',
-                      style: TextStyle(
-                        color: showMap ? Colors.white : VoyagoColors.muted,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  final String label;
-  final String icon;
-
-  const _InfoChip({required this.label, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black38,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        icon.isNotEmpty ? '$icon $label' : label,
-        style: const TextStyle(color: Colors.white, fontSize: 12),
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _Chip({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+        alignment: Alignment.center,
+        child: Icon(icon, color: VoyagoColors.text, size: 20),
       ),
     );
   }

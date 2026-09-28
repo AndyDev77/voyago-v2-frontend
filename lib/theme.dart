@@ -6,7 +6,9 @@ class VoyagoColors {
   static const Color primaryLight = Color(0xFF89E219);
   static const Color blue = Color(0xFF1CB0F6);
   static const Color yellow = Color(0xFFFFC800);
+  static const Color orange = Color(0xFFFF9600);
   static const Color coral = Color(0xFFFF4B4B);
+  static const Color green = Color(0xFF58CC02);
   static const Color background = Color(0xFF0F1117);
   static const Color surface = Color(0xFF1A1D27);
   static const Color text = Color(0xFFFFFFFF);

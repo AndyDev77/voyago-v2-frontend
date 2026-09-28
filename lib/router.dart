@@ -69,6 +69,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/itinerary',
+        builder: (context, state) {
+          final trip = state.extra is Trip ? state.extra as Trip : null;
+          return ItineraryScreen(tripId: '', trip: trip);
+        },
+      ),
+      GoRoute(
         path: '/itinerary/:tripId',
         builder: (context, state) {
           final tripId = state.pathParameters['tripId'] ?? '';
