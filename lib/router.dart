@@ -61,7 +61,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/configure',
         builder: (context, state) {
-          final interests = state.extra as List<String>? ?? [];
+          final extra = state.extra;
+          final List<String> interests = extra is List
+              ? extra.map((e) => e.toString()).toList()
+              : [];
           return ConfigureScreen(selectedInterests: interests);
         },
       ),
@@ -69,7 +72,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/itinerary/:tripId',
         builder: (context, state) {
           final tripId = state.pathParameters['tripId'] ?? '';
-          final trip = state.extra as Trip?;
+          final trip = state.extra is Trip ? state.extra as Trip : null;
           return ItineraryScreen(tripId: tripId, trip: trip);
         },
       ),

@@ -16,10 +16,18 @@ class TripCard extends StatelessWidget {
     this.authorInfo,
   });
 
+  String _formatDate(DateTime dt) {
+    try {
+      return DateFormat('d MMM yyyy', 'fr').format(dt);
+    } catch (_) {
+      return '${dt.day}/${dt.month}/${dt.year}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final coverPoi = trip.firstPoiWithImage;
-    final dateStr = DateFormat('d MMM yyyy', 'fr').format(trip.createdAt);
+    final dateStr = _formatDate(trip.createdAt);
 
     return GestureDetector(
       onTap: onTap,

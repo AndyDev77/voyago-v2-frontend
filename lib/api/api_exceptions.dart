@@ -73,7 +73,10 @@ class ApiException implements Exception {
             );
           case 409:
             return ConflictException(
-              message: extractedMessage,
+              message: extractedMessage.toLowerCase().contains('already') ||
+                      extractedMessage.toLowerCase().contains('existe')
+                  ? 'Cette adresse email est déjà associée à un compte Voyago.'
+                  : extractedMessage,
               statusCode: 409,
             );
           case 500:

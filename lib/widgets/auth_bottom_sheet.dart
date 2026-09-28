@@ -88,6 +88,100 @@ class _AuthBottomSheetState extends ConsumerState<AuthBottomSheet>
     }
   }
 
+  Future<void> _showAccountExistsDialog(String email) async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: VoyagoColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: VoyagoColors.cardBorder),
+        ),
+        title: const Row(
+          children: [
+            Text('🦜', style: TextStyle(fontSize: 28)),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Compte déjà existant !',
+                style: TextStyle(
+                  color: VoyagoColors.text,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  color: VoyagoColors.muted,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+                children: [
+                  const TextSpan(
+                    text: 'Un compte Voyago existe déjà avec l\'adresse :\n',
+                  ),
+                  TextSpan(
+                    text: email,
+                    style: const TextStyle(
+                      color: VoyagoColors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const TextSpan(
+                    text: '.\n\nVoulez-vous vous connecter directement avec ce compte ?',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(ctx).pop('cancel'),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: VoyagoColors.cardBorder),
+                    foregroundColor: VoyagoColors.muted,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Annuler', style: TextStyle(fontSize: 13)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop('login'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Se connecter', style: TextStyle(fontSize: 13)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (action == 'login' && mounted) {
+      _loginEmailCtrl.text = email;
+      _loginPasswordCtrl.clear();
+      setState(() => _error = null);
+      _tabController.animateTo(0);
+    }
+  }
+
   Future<void> _handleSignup() async {
     if (!_signupFormKey.currentState!.validate()) return;
     setState(() {
@@ -95,10 +189,12 @@ class _AuthBottomSheetState extends ConsumerState<AuthBottomSheet>
       _error = null;
     });
 
+    final email = _signupEmailCtrl.text.trim();
+
     try {
       await ref.read(authProvider.notifier).signup(
             name: _signupNameCtrl.text.trim(),
-            email: _signupEmailCtrl.text.trim(),
+            email: email,
             password: _signupPasswordCtrl.text,
             dateOfBirth: '2000-01-01',
             country: 'France',
@@ -112,6 +208,13 @@ class _AuthBottomSheetState extends ConsumerState<AuthBottomSheet>
         Navigator.of(context).pop(true);
       }
     } on ApiException catch (e) {
+      if (e.statusCode == 409 || e is ConflictException) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          await _showAccountExistsDialog(email);
+          return;
+        }
+      }
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
       if (mounted) setState(() => _error = 'Erreur lors de l\'inscription');

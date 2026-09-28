@@ -17,6 +17,7 @@ class AuthScreen extends ConsumerStatefulWidget {
 class _AuthScreenState extends ConsumerState<AuthScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  String? _prefilledLoginEmail;
 
   @override
   void initState() {
@@ -28,6 +29,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _switchToLogin(String email) {
+    setState(() {
+      _prefilledLoginEmail = email;
+    });
+    _tabController.animateTo(0);
   }
 
   @override
@@ -59,10 +67,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         controller: _tabController,
         children: [
           _LoginTab(
+            initialEmail: _prefilledLoginEmail,
             onForgotPassword: () => context.go('/forgot-password'),
             onSuccess: () => context.go('/'),
           ),
           _SignupTab(
+            onSwitchToLogin: _switchToLogin,
             onSuccess: () => context.go('/'),
           ),
         ],
@@ -72,10 +82,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 }
 
 class _LoginTab extends ConsumerStatefulWidget {
+  final String? initialEmail;
   final VoidCallback onForgotPassword;
   final VoidCallback onSuccess;
 
-  const _LoginTab({required this.onForgotPassword, required this.onSuccess});
+  const _LoginTab({
+    this.initialEmail,
+    required this.onForgotPassword,
+    required this.onSuccess,
+  });
 
   @override
   ConsumerState<_LoginTab> createState() => _LoginTabState();
@@ -83,11 +98,25 @@ class _LoginTab extends ConsumerStatefulWidget {
 
 class _LoginTabState extends ConsumerState<_LoginTab> {
   final _formKey = GlobalKey<FormState>();
-  final _emailCtrl = TextEditingController();
+  late final TextEditingController _emailCtrl;
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailCtrl = TextEditingController(text: widget.initialEmail ?? '');
+  }
+
+  @override
+  void didUpdateWidget(covariant _LoginTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialEmail != null && widget.initialEmail != oldWidget.initialEmail) {
+      _emailCtrl.text = widget.initialEmail!;
+    }
+  }
 
   @override
   void dispose() {
@@ -205,9 +234,13 @@ class _LoginTabState extends ConsumerState<_LoginTab> {
 }
 
 class _SignupTab extends ConsumerStatefulWidget {
+  final ValueChanged<String> onSwitchToLogin;
   final VoidCallback onSuccess;
 
-  const _SignupTab({required this.onSuccess});
+  const _SignupTab({
+    required this.onSwitchToLogin,
+    required this.onSuccess,
+  });
 
   @override
   ConsumerState<_SignupTab> createState() => _SignupTabState();
@@ -249,6 +282,97 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
     super.dispose();
   }
 
+  Future<void> _showAccountExistsDialog(String email) async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: VoyagoColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: VoyagoColors.cardBorder),
+        ),
+        title: const Row(
+          children: [
+            Text('🦜', style: TextStyle(fontSize: 28)),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Compte déjà existant !',
+                style: TextStyle(
+                  color: VoyagoColors.text,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  color: VoyagoColors.muted,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+                children: [
+                  const TextSpan(
+                    text: 'Un compte Voyago existe déjà avec l\'adresse :\n',
+                  ),
+                  TextSpan(
+                    text: email,
+                    style: const TextStyle(
+                      color: VoyagoColors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const TextSpan(
+                    text: '.\n\nVoulez-vous vous connecter directement avec ce compte ?',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(ctx).pop('cancel'),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: VoyagoColors.cardBorder),
+                    foregroundColor: VoyagoColors.muted,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Annuler', style: TextStyle(fontSize: 13)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop('login'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Se connecter', style: TextStyle(fontSize: 13)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (action == 'login' && mounted) {
+      widget.onSwitchToLogin(email);
+    }
+  }
+
   Future<void> _loadCountries() async {
     try {
       final options = await AuthApi().getAuthOptions();
@@ -277,6 +401,9 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
       _isLoading = true;
       _error = null;
     });
+
+    final email = _emailCtrl.text.trim();
+
     try {
       final dobStr = _dateOfBirth != null
           ? DateFormat('yyyy-MM-dd').format(_dateOfBirth!)
@@ -284,7 +411,7 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
 
       await ref.read(authProvider.notifier).signup(
             name: _nameCtrl.text.trim(),
-            email: _emailCtrl.text.trim(),
+            email: email,
             password: _passwordCtrl.text,
             dateOfBirth: dobStr,
             country: _selectedCountry ?? 'France',
@@ -294,6 +421,13 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
           );
       if (mounted) widget.onSuccess();
     } on ApiException catch (e) {
+      if (e.statusCode == 409 || e is ConflictException) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          await _showAccountExistsDialog(email);
+          return;
+        }
+      }
       if (mounted) setState(() => _error = e.message);
     } catch (e) {
       if (mounted) setState(() => _error = 'Erreur lors de l\'inscription');

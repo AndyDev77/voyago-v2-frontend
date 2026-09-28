@@ -177,8 +177,16 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen> {
     );
   }
 
+  String _formatDate(DateTime dt) {
+    try {
+      return DateFormat('MMM yyyy', 'fr').format(dt);
+    } catch (_) {
+      return '${dt.month}/${dt.year}';
+    }
+  }
+
   Widget _buildHeader(Trip trip) {
-    final dateStr = DateFormat('MMM yyyy', 'fr').format(trip.createdAt);
+    final dateStr = _formatDate(trip.createdAt);
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
