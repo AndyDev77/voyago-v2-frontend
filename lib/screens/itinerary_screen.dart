@@ -203,7 +203,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              _InfoChip(label: '$dateStr', icon: '📅'),
+              _InfoChip(label: dateStr, icon: '📅'),
               const SizedBox(width: 8),
               _InfoChip(label: '${trip.durationDays} jours', icon: '🗓'),
               const SizedBox(width: 8),

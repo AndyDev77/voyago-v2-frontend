@@ -226,10 +226,10 @@ class _HeroSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const Text('✈️', style: TextStyle(fontSize: 48)),
+          const Text('🦜', style: TextStyle(fontSize: 52)),
           const SizedBox(height: 16),
           const Text(
-            'Votre prochain voyage\ncommence ici',
+            'Voyage. Joue. Découvre.',
             style: TextStyle(
               color: VoyagoColors.text,
               fontSize: 24,
@@ -240,7 +240,7 @@ class _HeroSection extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           const Text(
-            'Générez un itinéraire personnalisé\ngrâce à l\'IA en quelques secondes',
+            'Laissez Voyago et l\'IA concevoir votre\nitinéraire personnalisé en quelques secondes',
             style: TextStyle(color: VoyagoColors.muted, fontSize: 14, height: 1.5),
             textAlign: TextAlign.center,
           ),

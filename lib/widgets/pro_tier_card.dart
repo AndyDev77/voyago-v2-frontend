@@ -21,7 +21,6 @@ class ProTierCard extends StatelessWidget {
     final price = tier['price']?.toString() ?? '';
     final currency = tier['currency']?.toString() ?? '€';
     final period = tier['period']?.toString() ?? '';
-    final tierId = tier['id']?.toString() ?? '';
     final benefits = tier['benefits'] as List? ?? [];
 
     return Stack(

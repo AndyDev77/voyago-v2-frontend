@@ -100,7 +100,7 @@ ThemeData voyagoTheme = ThemeData(
     color: VoyagoColors.cardBorder,
     thickness: 1,
   ),
-  tabBarTheme: const TabBarTheme(
+  tabBarTheme: const TabBarThemeData(
     labelColor: VoyagoColors.primary,
     unselectedLabelColor: VoyagoColors.muted,
     indicator: UnderlineTabIndicator(

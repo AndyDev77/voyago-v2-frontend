@@ -149,7 +149,7 @@ class TripCard extends StatelessWidget {
       width: double.infinity,
       color: VoyagoColors.cardBorder,
       child: const Center(
-        child: Text('✈️', style: TextStyle(fontSize: 40)),
+        child: Text('🦜', style: TextStyle(fontSize: 40)),
       ),
     );
   }

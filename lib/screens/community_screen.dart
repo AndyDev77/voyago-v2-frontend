@@ -104,10 +104,10 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('🌍', style: TextStyle(fontSize: 56)),
+            Text('🦜', style: TextStyle(fontSize: 56)),
             SizedBox(height: 20),
             Text(
-              'Aucun voyage partagé',
+              'Aucun voyage partagé pour le moment 🦜',
               style: TextStyle(
                 color: VoyagoColors.text,
                 fontSize: 18,
@@ -116,8 +116,9 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
             ),
             SizedBox(height: 8),
             Text(
-              'Soyez le premier à partager votre aventure !',
+              'Soyez le premier explorateur à partager votre aventure avec Voyago !',
               style: TextStyle(color: VoyagoColors.muted),
+              textAlign: TextAlign.center,
             ),
           ],
         ),

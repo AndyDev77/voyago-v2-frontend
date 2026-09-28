@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dio/dio.dart';
 import 'storage_service.dart';
 import '../models/interest.dart';
@@ -5,7 +7,31 @@ import '../models/trip.dart';
 import '../models/auth_user.dart';
 import '../models/user_profile.dart';
 
-// Émulateur Android → 10.0.2.2 | iPhone simulateur/web → localhost | Vrai téléphone → ton IP locale ex: 192.168.1.XX
+// Configuration URL Backend :
+// IP locale machine hôte actuelle : 192.168.1.81 (Port : 8001)
+// - Émulateur Android standard : http://10.0.2.2:8001 (ou http://192.168.1.81:8001)
+// - Appareil physique (Wi-Fi local) : http://192.168.1.81:8001
+// - Web / Simulateur iOS / Desktop : http://localhost:8001 (ou http://192.168.1.81:8001)
+// Surchargeable via --dart-define=BACKEND_URL=http://192.168.1.81:8001
+const String _envBackendUrl = String.fromEnvironment('BACKEND_URL');
+
+String get defaultBackendUrl {
+  if (_envBackendUrl.isNotEmpty) {
+    return _envBackendUrl;
+  }
+  if (kIsWeb) {
+    return 'http://localhost:8001';
+  }
+  if (Platform.isAndroid) {
+    return 'http://10.0.2.2:8001';
+  }
+  return 'http://localhost:8001';
+}
+
+// Raccourcis d'URL utiles
+const String localNetworkBackendUrl = 'http://192.168.1.81:8001';
+const String androidEmulatorBackendUrl = 'http://10.0.2.2:8001';
+const String localhostBackendUrl = 'http://localhost:8001';
 const String backendUrl = 'http://10.0.2.2:8001';
 
 class ApiException implements Exception {
@@ -24,7 +50,7 @@ class ApiService {
 
   ApiService._() {
     _dio = Dio(BaseOptions(
-      baseUrl: backendUrl,
+      baseUrl: defaultBackendUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 60),
       headers: {'Content-Type': 'application/json'},

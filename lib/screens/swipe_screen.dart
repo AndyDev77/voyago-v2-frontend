@@ -22,7 +22,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen>
   bool _isSwiping = false;
   late AnimationController _snapController;
   late Animation<double> _snapAnimation;
-  double _swipeStartOffset = 0.0;
 
   @override
   void initState() {
@@ -45,7 +44,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen>
   }
 
   void _onDragStart(DragStartDetails details) {
-    _swipeStartOffset = _dragOffset;
     _isSwiping = true;
   }
 
@@ -366,15 +364,15 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen>
       decoration: BoxDecoration(
         color: VoyagoColors.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: VoyagoColors.primary.withOpacity(0.4)),
+        border: Border.all(color: VoyagoColors.primary.withValues(alpha: 0.4)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('🎉', style: TextStyle(fontSize: 64)),
+          const Text('🦜', style: TextStyle(fontSize: 64)),
           const SizedBox(height: 20),
           const Text(
-            'Super !',
+            'Parfait ! 🦜',
             style: TextStyle(
               color: VoyagoColors.text,
               fontSize: 28,
@@ -383,7 +381,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen>
           ),
           const SizedBox(height: 12),
           Text(
-            'Vous avez sélectionné ${_selectedIds.length} intérêt${_selectedIds.length > 1 ? 's' : ''}',
+            'Vous avez sélectionné ${_selectedIds.length} intérêt${_selectedIds.length > 1 ? 's' : ''}.\nVoyago est prêt à personnaliser votre aventure !',
             style: const TextStyle(color: VoyagoColors.muted, fontSize: 15),
             textAlign: TextAlign.center,
           ),

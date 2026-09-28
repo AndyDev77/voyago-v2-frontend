@@ -373,11 +373,21 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
                     child: Center(
                       child: Column(
                         children: [
-                          Text('✈️', style: TextStyle(fontSize: 36)),
+                          Text('🦜', style: TextStyle(fontSize: 40)),
                           SizedBox(height: 12),
                           Text(
-                            'Aucun voyage encore',
-                            style: TextStyle(color: VoyagoColors.muted),
+                            'Aucun voyage encore 🦜',
+                            style: TextStyle(
+                              color: VoyagoColors.text,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Lancez l\'IA Voyago pour créer votre première aventure !',
+                            style: TextStyle(color: VoyagoColors.muted, fontSize: 13),
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),

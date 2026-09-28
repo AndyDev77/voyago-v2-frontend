@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
-import '../models/trip.dart';
 import '../theme.dart';
 
 class ConfigureScreen extends ConsumerStatefulWidget {
@@ -119,12 +118,12 @@ class _ConfigureScreenState extends ConsumerState<ConfigureScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('✈️', style: TextStyle(fontSize: 64)),
+          Text('🦜', style: TextStyle(fontSize: 64)),
           SizedBox(height: 24),
           CircularProgressIndicator(color: VoyagoColors.primary),
           SizedBox(height: 20),
           Text(
-            'Génération en cours...',
+            'Voyago prépare votre voyage ! 🦜',
             style: TextStyle(
               color: VoyagoColors.text,
               fontSize: 20,
@@ -133,7 +132,7 @@ class _ConfigureScreenState extends ConsumerState<ConfigureScreen> {
           ),
           SizedBox(height: 8),
           Text(
-            'L\'IA prépare votre itinéraire personnalisé',
+            'Notre mascotte et l\'IA créent votre itinéraire personnalisé...',
             style: TextStyle(color: VoyagoColors.muted, fontSize: 14),
           ),
         ],

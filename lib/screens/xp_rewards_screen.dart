@@ -13,7 +13,6 @@ class XpRewardsScreen extends StatefulWidget {
 class _XpRewardsScreenState extends State<XpRewardsScreen> {
   bool _isLoading = true;
   Map<String, dynamic> _data = {};
-  String? _error;
 
   // Default data if API fails
   static const Map<String, dynamic> _defaultData = {
