@@ -17,7 +17,7 @@ class WeatherStrip extends StatelessWidget {
     if (weather.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      height: 80,
+      height: 94,
       color: VoyagoColors.surface,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
@@ -52,18 +52,19 @@ class _WeatherDay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: isSelected
-            ? VoyagoColors.primary.withOpacity(0.2)
+            ? VoyagoColors.primary.withOpacity(0.18)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isSelected ? VoyagoColors.primary : Colors.transparent,
+          color: isSelected ? VoyagoColors.primary : VoyagoColors.cardBorder.withOpacity(0.5),
         ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             'J$dayNumber',
@@ -73,24 +74,32 @@ class _WeatherDay extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
+          const SizedBox(height: 2),
           Text(
             weather.icon,
             style: const TextStyle(fontSize: 16),
           ),
-          Text(
-            '${weather.tempMax.round()}°',
-            style: TextStyle(
-              color: isSelected ? VoyagoColors.text : VoyagoColors.muted,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            '${weather.tempMin.round()}°',
-            style: const TextStyle(
-              color: VoyagoColors.muted,
-              fontSize: 10,
-            ),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${weather.tempMax.round()}°',
+                style: TextStyle(
+                  color: isSelected ? VoyagoColors.text : VoyagoColors.muted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 3),
+              Text(
+                '${weather.tempMin.round()}°',
+                style: TextStyle(
+                  color: VoyagoColors.muted.withOpacity(0.7),
+                  fontSize: 10,
+                ),
+              ),
+            ],
           ),
         ],
       ),
