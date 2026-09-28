@@ -8,11 +8,11 @@ import '../models/auth_user.dart';
 import '../models/user_profile.dart';
 
 // Configuration URL Backend :
-// IP locale machine hôte actuelle : 192.168.1.81 (Port : 8001)
-// - Émulateur Android standard : http://10.0.2.2:8001 (ou http://192.168.1.81:8001)
-// - Appareil physique (Wi-Fi local) : http://192.168.1.81:8001
-// - Web / Simulateur iOS / Desktop : http://localhost:8001 (ou http://192.168.1.81:8001)
-// Surchargeable via --dart-define=BACKEND_URL=http://192.168.1.81:8001
+// IP locale machine hôte actuelle : 192.168.1.81 (Port : 3333)
+// - Émulateur Android standard : http://10.0.2.2:3333 (ou http://192.168.1.81:3333)
+// - Appareil physique (Wi-Fi local) : http://192.168.1.81:3333
+// - Web / Simulateur iOS / Desktop : http://localhost:3333 (ou http://192.168.1.81:3333)
+// Surchargeable via --dart-define=BACKEND_URL=http://192.168.1.81:3333
 const String _envBackendUrl = String.fromEnvironment('BACKEND_URL');
 
 String get defaultBackendUrl {
@@ -20,19 +20,19 @@ String get defaultBackendUrl {
     return _envBackendUrl;
   }
   if (kIsWeb) {
-    return 'http://localhost:8001';
+    return 'http://localhost:3333';
   }
   if (Platform.isAndroid) {
-    return 'http://10.0.2.2:8001';
+    return 'http://10.0.2.2:3333';
   }
-  return 'http://localhost:8001';
+  return 'http://localhost:3333';
 }
 
 // Raccourcis d'URL utiles
-const String localNetworkBackendUrl = 'http://192.168.1.81:8001';
-const String androidEmulatorBackendUrl = 'http://10.0.2.2:8001';
-const String localhostBackendUrl = 'http://localhost:8001';
-const String backendUrl = 'http://10.0.2.2:8001';
+const String localNetworkBackendUrl = 'http://192.168.1.81:3333';
+const String androidEmulatorBackendUrl = 'http://10.0.2.2:3333';
+const String localhostBackendUrl = 'http://localhost:3333';
+const String backendUrl = 'http://10.0.2.2:3333';
 
 class ApiException implements Exception {
   final int? statusCode;

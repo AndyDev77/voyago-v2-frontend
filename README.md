@@ -122,21 +122,21 @@ flutter run
 Dans `lib/services/api_service.dart`, l'URL du backend s'adapte automatiquement selon la plateforme ou via `--dart-define` :
 
 ```dart
-// IP locale actuelle de la machine : 192.168.1.81 (Port 8001)
+// IP locale actuelle de la machine : 192.168.1.81 (Port 3333)
 
 // 1. Émulateur Android (redirection automatique)
-const String androidEmulatorBackendUrl = 'http://10.0.2.2:8001';
+const String androidEmulatorBackendUrl = 'http://10.0.2.2:3333';
 
 // 2. Vrai téléphone / Appareil physique (Wi-Fi local)
-const String localNetworkBackendUrl = 'http://192.168.1.81:8001';
+const String localNetworkBackendUrl = 'http://192.168.1.81:3333';
 
 // 3. Simulateur iOS / Web / Desktop
-const String localhostBackendUrl = 'http://localhost:8001';
+const String localhostBackendUrl = 'http://localhost:3333';
 ```
 
 > **Astuce :** Vous pouvez aussi surcharger l'URL au lancement sans modifier le code :
 > ```bash
-> flutter run --dart-define=BACKEND_URL=http://192.168.1.81:8001
+> flutter run --dart-define=BACKEND_URL=http://192.168.1.81:3333
 > ```
 
 ---
