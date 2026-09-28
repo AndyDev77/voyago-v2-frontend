@@ -57,11 +57,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
     DioClient.instance.onAuthExpired = () {
       logout();
     };
+    loadSession();
   }
 
   /// Initialise la session au démarrage depuis le stockage chiffré
   Future<void> loadSession() async {
-    state = state.copyWith(isLoading: true, clearError: true);
     try {
       final token = await _storage.getSessionToken();
       final userId = await _storage.getUserId();

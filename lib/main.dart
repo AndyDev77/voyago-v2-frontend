@@ -11,25 +11,11 @@ void main() async {
   runApp(const ProviderScope(child: VoyagoApp()));
 }
 
-class VoyagoApp extends ConsumerStatefulWidget {
+class VoyagoApp extends ConsumerWidget {
   const VoyagoApp({super.key});
 
   @override
-  ConsumerState<VoyagoApp> createState() => _VoyagoAppState();
-}
-
-class _VoyagoAppState extends ConsumerState<VoyagoApp> {
-  @override
-  void initState() {
-    super.initState();
-    // Load session on startup
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(authProvider.notifier).loadSession();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(

@@ -15,15 +15,32 @@ import 'screens/community_screen.dart';
 import 'screens/xp_rewards_screen.dart';
 import 'screens/public_user_screen.dart';
 
+class RouterNotifier extends ChangeNotifier {
+  final Ref _ref;
+
+  RouterNotifier(this._ref) {
+    _ref.listen<AuthState>(
+      authProvider,
+      (_, __) => notifyListeners(),
+    );
+  }
+
+  String? redirect(BuildContext context, GoRouterState state) {
+    return null;
+  }
+}
+
+final routerNotifierProvider = Provider<RouterNotifier>((ref) {
+  return RouterNotifier(ref);
+});
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+  final notifier = ref.watch(routerNotifierProvider);
 
   return GoRouter(
+    refreshListenable: notifier,
     initialLocation: '/',
-    redirect: (context, state) {
-      if (!authState.sessionLoaded) return null;
-      return null;
-    },
+    redirect: notifier.redirect,
     routes: [
       GoRoute(
         path: '/',
