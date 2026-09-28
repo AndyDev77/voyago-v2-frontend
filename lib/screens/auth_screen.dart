@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../api/api.dart';
+import '../core/utils/form_validators.dart';
 import '../providers/auth_provider.dart';
-import '../services/api_service.dart';
 import '../theme.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -152,11 +153,7 @@ class _LoginTabState extends ConsumerState<_LoginTab> {
               ),
               keyboardType: TextInputType.emailAddress,
               autocorrect: false,
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Email requis';
-                if (!v.contains('@')) return 'Email invalide';
-                return null;
-              },
+              validator: FormValidators.validateEmail,
             ),
             const SizedBox(height: 16),
 
@@ -174,10 +171,7 @@ class _LoginTabState extends ConsumerState<_LoginTab> {
                 ),
               ),
               obscureText: _obscurePassword,
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Mot de passe requis';
-                return null;
-              },
+              validator: FormValidators.validatePassword,
             ),
             const SizedBox(height: 8),
 
@@ -225,6 +219,7 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _pseudoCtrl = TextEditingController();
+  final _cityCtrl = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
   String? _error;
@@ -250,23 +245,27 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _pseudoCtrl.dispose();
+    _cityCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _loadCountries() async {
     try {
-      final options = await ApiService.instance.getAuthOptions();
+      final options = await AuthApi().getAuthOptions();
       final countries = options['countries'] as List? ?? [];
       if (mounted) {
         setState(() {
           _countries = countries.map((c) => c.toString()).toList();
+          if (_countries.isNotEmpty && _selectedCountry == null) {
+            _selectedCountry = _countries.first;
+          }
         });
       }
     } catch (_) {
-      // Use a default list
       if (mounted) {
         setState(() {
-          _countries = ['France', 'Belgique', 'Suisse', 'Canada', 'Maroc', 'Autres'];
+          _countries = ['France', 'Belgique', 'Suisse', 'Canada', 'Maroc', 'Côte d\'Ivoire', 'Sénégal', 'Autres'];
+          _selectedCountry = 'France';
         });
       }
     }
@@ -279,16 +278,19 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
       _error = null;
     });
     try {
+      final dobStr = _dateOfBirth != null
+          ? DateFormat('yyyy-MM-dd').format(_dateOfBirth!)
+          : '2000-01-01';
+
       await ref.read(authProvider.notifier).signup(
             name: _nameCtrl.text.trim(),
             email: _emailCtrl.text.trim(),
             password: _passwordCtrl.text,
+            dateOfBirth: dobStr,
+            country: _selectedCountry ?? 'France',
+            city: _cityCtrl.text.trim().isNotEmpty ? _cityCtrl.text.trim() : 'Paris',
             pseudo: _pseudoCtrl.text.trim().isEmpty ? null : _pseudoCtrl.text.trim(),
             avatarEmoji: _selectedEmoji,
-            dateOfBirth: _dateOfBirth != null
-                ? DateFormat('yyyy-MM-dd').format(_dateOfBirth!)
-                : null,
-            country: _selectedCountry,
           );
       if (mounted) widget.onSuccess();
     } on ApiException catch (e) {
@@ -339,7 +341,7 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Rejoins des milliers de voyageurs',
+              'Rejoins des milliers de voyageurs avec Voyago 🦜',
               style: TextStyle(color: VoyagoColors.muted, fontSize: 14),
             ),
             const SizedBox(height: 32),
@@ -352,7 +354,7 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
                 labelText: 'Nom complet *',
                 prefixIcon: Icon(Icons.person_outline, color: VoyagoColors.muted),
               ),
-              validator: (v) => v == null || v.isEmpty ? 'Nom requis' : null,
+              validator: FormValidators.validateName,
             ),
             const SizedBox(height: 16),
 
@@ -364,11 +366,7 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
               ),
               keyboardType: TextInputType.emailAddress,
               autocorrect: false,
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Email requis';
-                if (!v.contains('@')) return 'Email invalide';
-                return null;
-              },
+              validator: FormValidators.validateEmail,
             ),
             const SizedBox(height: 16),
 
@@ -386,11 +384,7 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
                 ),
               ),
               obscureText: _obscurePassword,
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Mot de passe requis';
-                if (v.length < 6) return 'Minimum 6 caractères';
-                return null;
-              },
+              validator: FormValidators.validatePassword,
             ),
             const SizedBox(height: 16),
 
@@ -399,6 +393,16 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
               decoration: const InputDecoration(
                 labelText: 'Pseudo (optionnel)',
                 prefixIcon: Icon(Icons.alternate_email, color: VoyagoColors.muted),
+              ),
+              validator: FormValidators.validatePseudo,
+            ),
+            const SizedBox(height: 16),
+
+            TextFormField(
+              controller: _cityCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Ville de résidence',
+                prefixIcon: Icon(Icons.location_city_outlined, color: VoyagoColors.muted),
               ),
             ),
             const SizedBox(height: 24),

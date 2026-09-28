@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../api/api.dart';
+import '../core/utils/form_validators.dart';
 import '../providers/auth_provider.dart';
-import '../services/api_service.dart';
-import '../services/storage_service.dart';
+import '../providers/trips_provider.dart';
 import '../theme.dart';
 
 class ConfigureScreen extends ConsumerStatefulWidget {
@@ -51,12 +52,13 @@ class _ConfigureScreenState extends ConsumerState<ConfigureScreen> {
   }
 
   Future<void> _generate() async {
-    if (_destinationCtrl.text.trim().isEmpty) {
-      setState(() => _error = 'Veuillez saisir une destination');
+    final destError = FormValidators.validateDestination(_destinationCtrl.text);
+    if (destError != null) {
+      setState(() => _error = destError);
       return;
     }
     if (_transports.isEmpty) {
-      setState(() => _error = 'Veuillez sélectionner au moins un transport');
+      setState(() => _error = 'Veuillez sélectionner au moins un moyen de transport');
       return;
     }
 
@@ -67,10 +69,9 @@ class _ConfigureScreenState extends ConsumerState<ConfigureScreen> {
 
     try {
       final authState = ref.read(authProvider);
-      final userId = authState.user?.userId ??
-          StorageService.instance.guestUserId;
+      final userId = authState.user?.userId;
 
-      final trip = await ApiService.instance.generateTrip(
+      final trip = await ref.read(tripGeneratorProvider.notifier).generate(
         destination: _destinationCtrl.text.trim(),
         durationDays: _durationDays.round(),
         pace: _pace,

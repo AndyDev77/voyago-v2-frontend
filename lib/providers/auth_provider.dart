@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import '../api/api.dart';
+import '../core/storage/secure_storage_service.dart';
 import '../models/auth_user.dart';
-import '../services/api_service.dart';
-import '../services/storage_service.dart';
 
 class AuthState {
   final AuthUser? user;
@@ -19,9 +19,9 @@ class AuthState {
     this.sessionLoaded = false,
   });
 
-  bool get isLoggedIn => user != null && token != null;
-
-  bool get isGuest => user == null && token == null;
+  bool get isLoggedIn => user != null && token != null && token!.isNotEmpty;
+  bool get isGuest => !isLoggedIn;
+  String get userId => user?.userId ?? '';
 
   AuthState copyWith({
     AuthUser? user,
@@ -44,65 +44,79 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  final ApiService _api;
-  final StorageService _storage;
+  final AuthApi _authApi;
+  final SecureStorageService _storage;
 
-  AuthNotifier(this._api, this._storage) : super(const AuthState());
+  AuthNotifier({
+    AuthApi? authApi,
+    SecureStorageService? storage,
+  })  : _authApi = authApi ?? AuthApi(),
+        _storage = storage ?? SecureStorageService.instance,
+        super(const AuthState()) {
+    // Intercepter la déconnexion automatique en cas de 401 Unauthorized
+    DioClient.instance.onAuthExpired = () {
+      logout();
+    };
+  }
 
+  /// Initialise la session au démarrage depuis le stockage chiffré
   Future<void> loadSession() async {
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final token = _storage.sessionToken;
-      final userId = _storage.userId;
+      final token = await _storage.getSessionToken();
+      final userId = await _storage.getUserId();
+      final cachedUser = await _storage.getAuthUser();
 
-      if (token != null && userId != null) {
-        try {
-          final user = await _api.getMe();
-          state = AuthState(
-            user: user,
-            token: token,
-            sessionLoaded: true,
-          );
-          return;
-        } catch (_) {
-          // Token expired or invalid — clear it
-          await _storage.clearAuth();
-        }
+      if (token != null && token.isNotEmpty && userId != null && userId.isNotEmpty) {
+        state = AuthState(
+          user: cachedUser ?? AuthUser(
+            userId: userId,
+            authProvider: 'email',
+            name: 'Voyageur',
+            isPro: false,
+          ),
+          token: token,
+          sessionLoaded: true,
+          isLoading: false,
+        );
+        return;
       }
 
-      // Ensure we have a guest ID
-      if (_storage.guestUserId == null) {
-        final guestId = const Uuid().v4();
+      // S'assurer qu'un identifiant invité existe
+      var guestId = await _storage.getGuestUserId();
+      if (guestId == null || guestId.isEmpty) {
+        guestId = const Uuid().v4();
         await _storage.setGuestUserId(guestId);
       }
 
-      state = AuthState(sessionLoaded: true);
+      state = const AuthState(sessionLoaded: true, isLoading: false);
     } catch (e) {
       state = AuthState(
         sessionLoaded: true,
+        isLoading: false,
         error: e.toString(),
       );
     }
   }
 
+  /// Connexion Email
   Future<void> login({
     required String email,
     required String password,
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final result = await _api.login(email: email, password: password);
-      final token = result['token']?.toString() ??
-          result['access_token']?.toString() ??
-          '';
-      final user = AuthUser.fromJson(
-        result['user'] as Map<String, dynamic>? ?? result,
+      final result = await _authApi.loginEmail(
+        email: email,
+        password: password,
       );
 
-      await _storage.setSessionToken(token);
-      await _storage.setUserId(user.userId);
-
-      state = AuthState(user: user, token: token, sessionLoaded: true);
+      state = AuthState(
+        user: result.user,
+        token: result.sessionToken,
+        sessionLoaded: true,
+        isLoading: false,
+      );
     } on ApiException catch (e) {
       state = state.copyWith(isLoading: false, error: e.message);
       rethrow;
@@ -112,38 +126,36 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  /// Inscription Email
   Future<void> signup({
     required String name,
     required String email,
     required String password,
+    required String dateOfBirth,
+    required String country,
+    required String city,
     String? pseudo,
     String? avatarEmoji,
-    String? dateOfBirth,
-    String? country,
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final result = await _api.signup(
+      final result = await _authApi.signupEmail(
         name: name,
         email: email,
         password: password,
-        pseudo: pseudo,
-        avatarEmoji: avatarEmoji,
         dateOfBirth: dateOfBirth,
         country: country,
+        city: city,
+        pseudo: pseudo,
+        avatarEmoji: avatarEmoji,
       );
 
-      final token = result['token']?.toString() ??
-          result['access_token']?.toString() ??
-          '';
-      final user = AuthUser.fromJson(
-        result['user'] as Map<String, dynamic>? ?? result,
+      state = AuthState(
+        user: result.user,
+        token: result.sessionToken,
+        sessionLoaded: true,
+        isLoading: false,
       );
-
-      await _storage.setSessionToken(token);
-      await _storage.setUserId(user.userId);
-
-      state = AuthState(user: user, token: token, sessionLoaded: true);
     } on ApiException catch (e) {
       state = state.copyWith(isLoading: false, error: e.message);
       rethrow;
@@ -153,21 +165,129 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> logout() async {
-    await _api.logout();
-    await _storage.clearAuth();
-    state = AuthState(sessionLoaded: true);
-  }
-
-  Future<void> updateProfile(Map<String, dynamic> data) async {
+  /// Connexion Google OAuth
+  Future<void> loginGoogle({
+    required String idToken,
+    required String name,
+    required String email,
+    String? picture,
+  }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final updated = await _api.updateProfile(data);
+      final result = await _authApi.loginGoogleSession(
+        idToken: idToken,
+        name: name,
+        email: email,
+        picture: picture,
+      );
+
+      state = AuthState(
+        user: result.user,
+        token: result.sessionToken,
+        sessionLoaded: true,
+        isLoading: false,
+      );
+    } on ApiException catch (e) {
+      state = state.copyWith(isLoading: false, error: e.message);
+      rethrow;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
+    }
+  }
+
+  /// Connexion Mode Invité (Guest)
+  Future<void> loginGuest() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final guestId = await _storage.getGuestUserId() ?? const Uuid().v4();
+      final result = await _authApi.loginGuest(guestId: guestId);
+
+      state = AuthState(
+        user: result.user,
+        token: result.sessionToken,
+        sessionLoaded: true,
+        isLoading: false,
+      );
+    } on ApiException catch (e) {
+      state = state.copyWith(isLoading: false, error: e.message);
+      rethrow;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
+    }
+  }
+
+  /// Envoi de code OTP pour mot de passe oublié
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final result = await _authApi.forgotPassword(email);
+      state = state.copyWith(isLoading: false);
+      return result;
+    } on ApiException catch (e) {
+      state = state.copyWith(isLoading: false, error: e.message);
+      rethrow;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
+    }
+  }
+
+  /// Réinitialisation du mot de passe avec code OTP
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final result = await _authApi.resetPassword(
+        email: email,
+        code: code,
+        newPassword: newPassword,
+      );
+      state = state.copyWith(isLoading: false);
+      return result;
+    } on ApiException catch (e) {
+      state = state.copyWith(isLoading: false, error: e.message);
+      rethrow;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
+    }
+  }
+
+  /// Mise à jour du profil utilisateur
+  Future<void> updateProfile([
+    Map<String, dynamic>? data,
+  ]) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final updated = await _authApi.updateProfile(
+        name: data?['name']?.toString(),
+        pseudo: data?['pseudo']?.toString(),
+        avatarEmoji: data?['avatar_emoji']?.toString() ?? data?['avatarEmoji']?.toString(),
+        country: data?['country']?.toString(),
+        city: data?['city']?.toString(),
+      );
       state = state.copyWith(user: updated, isLoading: false);
     } on ApiException catch (e) {
       state = state.copyWith(isLoading: false, error: e.message);
       rethrow;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
     }
+  }
+
+  /// Déconnexion complète
+  Future<void> logout() async {
+    try {
+      await _authApi.logout();
+    } catch (_) {}
+    await _storage.clearAuth();
+    state = const AuthState(sessionLoaded: true, isLoading: false);
   }
 
   void clearError() {
@@ -175,6 +295,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
+/// Provider Principal d'Authentification
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier(ApiService.instance, StorageService.instance);
+  return AuthNotifier();
+});
+
+/// Provider Raccourci pour l'utilisateur courant
+final currentUserProvider = Provider<AuthUser?>((ref) {
+  return ref.watch(authProvider).user;
+});
+
+/// Provider Raccourci pour le statut connecté
+final isAuthenticatedProvider = Provider<bool>((ref) {
+  return ref.watch(authProvider).isLoggedIn;
 });

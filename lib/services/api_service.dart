@@ -1,120 +1,57 @@
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:dio/dio.dart';
-import 'storage_service.dart';
+import '../api/api.dart';
+import '../core/storage/secure_storage_service.dart';
+import '../models/auth_user.dart';
 import '../models/interest.dart';
 import '../models/trip.dart';
-import '../models/auth_user.dart';
 import '../models/user_profile.dart';
 
-// Configuration URL Backend :
-// IP locale machine hôte actuelle : 192.168.1.81 (Port : 3333)
-// - Émulateur Android standard : http://10.0.2.2:3333 (ou http://192.168.1.81:3333)
-// - Appareil physique (Wi-Fi local) : http://192.168.1.81:3333
-// - Web / Simulateur iOS / Desktop : http://localhost:3333 (ou http://192.168.1.81:3333)
-// Surchargeable via --dart-define=BACKEND_URL=http://192.168.1.81:3333
-const String _envBackendUrl = String.fromEnvironment('BACKEND_URL');
+export '../api/api_exceptions.dart';
+export '../api/endpoints.dart';
 
-String get defaultBackendUrl {
-  if (_envBackendUrl.isNotEmpty) {
-    return _envBackendUrl;
-  }
-  if (kIsWeb) {
-    return 'http://localhost:3333';
-  }
-  if (Platform.isAndroid) {
-    return 'http://10.0.2.2:3333';
-  }
-  return 'http://localhost:3333';
-}
-
-// Raccourcis d'URL utiles
-const String localNetworkBackendUrl = 'http://192.168.1.81:3333';
-const String androidEmulatorBackendUrl = 'http://10.0.2.2:3333';
-const String localhostBackendUrl = 'http://localhost:3333';
-const String backendUrl = 'http://10.0.2.2:3333';
-
-class ApiException implements Exception {
-  final int? statusCode;
-  final String message;
-
-  ApiException({this.statusCode, required this.message});
-
-  @override
-  String toString() => 'ApiException($statusCode): $message';
-}
-
+/// Façade unifiée ApiService (déléguant vers les modules spécialisés de lib/api/)
 class ApiService {
   static ApiService? _instance;
-  late final Dio _dio;
 
-  ApiService._() {
-    _dio = Dio(BaseOptions(
-      baseUrl: defaultBackendUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 60),
-      headers: {'Content-Type': 'application/json'},
-    ));
+  final AuthApi auth;
+  final TripsApi trips;
+  final CommunityApi community;
+  final GamificationApi gamification;
+  final ProApi pro;
+  final InterestsApi interests;
 
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) async {
-          final token = StorageService.instance.sessionToken;
-          if (token != null && token.isNotEmpty) {
-            options.headers['Authorization'] = 'Bearer $token';
-          }
-          handler.next(options);
-        },
-        onError: (error, handler) {
-          handler.next(error);
-        },
-      ),
-    );
-  }
+  ApiService._({
+    required this.auth,
+    required this.trips,
+    required this.community,
+    required this.gamification,
+    required this.pro,
+    required this.interests,
+  });
 
   static ApiService get instance {
-    _instance ??= ApiService._();
+    _instance ??= ApiService._(
+      auth: AuthApi(),
+      trips: TripsApi(),
+      community: CommunityApi(),
+      gamification: GamificationApi(),
+      pro: ProApi(),
+      interests: InterestsApi(),
+    );
     return _instance!;
   }
 
-  DioException? _wrap(dynamic e) {
-    if (e is DioException) return e;
-    return null;
-  }
-
-  ApiException _handleError(dynamic e) {
-    final dioErr = _wrap(e);
-    if (dioErr != null) {
-      final statusCode = dioErr.response?.statusCode;
-      final data = dioErr.response?.data;
-      String message = 'Une erreur est survenue';
-      if (data is Map) {
-        message = data['detail']?.toString() ??
-            data['message']?.toString() ??
-            data['error']?.toString() ??
-            message;
-      } else if (data is String && data.isNotEmpty) {
-        message = data;
-      }
-      return ApiException(statusCode: statusCode, message: message);
-    }
-    return ApiException(message: e.toString());
-  }
-
-  // AUTH
+  // --- AUTH BRIDGE METHODS ---
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
   }) async {
-    try {
-      final resp = await _dio.post('/api/auth/email/login', data: {
-        'email': email,
-        'password': password,
-      });
-      return resp.data as Map<String, dynamic>;
-    } catch (e) {
-      throw _handleError(e);
-    }
+    final res = await auth.loginEmail(email: email, password: password);
+    return {
+      'user': res.user.toJson(),
+      'token': res.sessionToken,
+      'session_token': res.sessionToken,
+      'tenant_id': res.tenantId,
+    };
   }
 
   Future<Map<String, dynamic>> signup({
@@ -125,113 +62,79 @@ class ApiService {
     String? avatarEmoji,
     String? dateOfBirth,
     String? country,
+    String? city,
   }) async {
-    try {
-      final resp = await _dio.post('/api/auth/email/signup', data: {
-        'name': name,
-        'email': email,
-        'password': password,
-        if (pseudo != null && pseudo.isNotEmpty) 'pseudo': pseudo,
-        if (avatarEmoji != null) 'avatar_emoji': avatarEmoji,
-        if (dateOfBirth != null) 'date_of_birth': dateOfBirth,
-        if (country != null) 'country': country,
-      });
-      return resp.data as Map<String, dynamic>;
-    } catch (e) {
-      throw _handleError(e);
-    }
+    final res = await auth.signupEmail(
+      email: email,
+      password: password,
+      name: name,
+      dateOfBirth: dateOfBirth ?? '2000-01-01',
+      country: country ?? 'France',
+      city: city ?? 'Paris',
+      pseudo: pseudo,
+      avatarEmoji: avatarEmoji,
+    );
+    return {
+      'user': res.user.toJson(),
+      'token': res.sessionToken,
+      'session_token': res.sessionToken,
+      'tenant_id': res.tenantId,
+    };
   }
 
-  Future<void> logout() async {
-    try {
-      await _dio.post('/api/auth/logout');
-    } catch (_) {
-      // Ignore errors on logout
-    }
+  Future<Map<String, dynamic>> googleSession({
+    required String idToken,
+    required String name,
+    required String email,
+    String? picture,
+  }) async {
+    final res = await auth.loginGoogleSession(
+      idToken: idToken,
+      name: name,
+      email: email,
+      picture: picture,
+    );
+    return {
+      'user': res.user.toJson(),
+      'token': res.sessionToken,
+      'session_token': res.sessionToken,
+      'tenant_id': res.tenantId,
+    };
   }
 
-  Future<AuthUser> getMe() async {
-    try {
-      final resp = await _dio.get('/api/auth/me');
-      return AuthUser.fromJson(resp.data as Map<String, dynamic>);
-    } catch (e) {
-      throw _handleError(e);
-    }
+  Future<Map<String, dynamic>> guestSession({String? guestId}) async {
+    final res = await auth.loginGuest(guestId: guestId);
+    return {
+      'user': res.user.toJson(),
+      'token': res.sessionToken,
+      'session_token': res.sessionToken,
+      'tenant_id': res.tenantId,
+    };
   }
 
-  Future<AuthUser> updateProfile(Map<String, dynamic> data) async {
-    try {
-      final resp = await _dio.put('/api/auth/me', data: data);
-      return AuthUser.fromJson(resp.data as Map<String, dynamic>);
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
+  Future<Map<String, dynamic>> forgotPassword(String email) =>
+      auth.forgotPassword(email);
 
-  Future<void> forgotPassword(String email) async {
-    try {
-      await _dio.post('/api/auth/forgot-password', data: {'email': email});
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  Future<void> resetPassword({
+  Future<Map<String, dynamic>> resetPassword({
     required String email,
     required String code,
     required String newPassword,
-  }) async {
-    try {
-      await _dio.post('/api/auth/reset-password', data: {
-        'email': email,
-        'code': code,
-        'new_password': newPassword,
-      });
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
+  }) =>
+      auth.resetPassword(email: email, code: code, newPassword: newPassword);
 
-  Future<Map<String, dynamic>> getAuthOptions() async {
-    try {
-      final resp = await _dio.get('/api/auth/options');
-      return resp.data as Map<String, dynamic>;
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
+  Future<Map<String, dynamic>> getAuthOptions() => auth.getAuthOptions();
 
-  Future<Map<String, dynamic>> googleSession(String token) async {
-    try {
-      final resp = await _dio.post('/api/auth/google/session', data: {
-        'token': token,
-      });
-      return resp.data as Map<String, dynamic>;
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
+  Future<AuthUser> updateProfile(Map<String, dynamic> data) => auth.updateProfile(
+        name: data['name']?.toString(),
+        pseudo: data['pseudo']?.toString(),
+        avatarEmoji: data['avatar_emoji']?.toString() ?? data['avatarEmoji']?.toString(),
+        country: data['country']?.toString(),
+        city: data['city']?.toString(),
+      );
 
-  // INTERESTS
-  Future<List<Interest>> getInterests() async {
-    try {
-      final resp = await _dio.get('/api/interests');
-      final data = resp.data;
-      if (data is List) {
-        return data.map((e) => Interest.fromJson(e as Map<String, dynamic>)).toList();
-      }
-      if (data is Map && data['interests'] is List) {
-        return (data['interests'] as List)
-            .map((e) => Interest.fromJson(e as Map<String, dynamic>))
-            .toList();
-      }
-      return [];
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
+  Future<void> logout() => auth.logout();
 
-  // TRIPS
+  // --- TRIPS BRIDGE METHODS ---
   Future<Trip> generateTrip({
     required String destination,
     required int durationDays,
@@ -240,168 +143,128 @@ class ApiService {
     required List<String> transports,
     required List<String> interests,
     String? userId,
-  }) async {
-    try {
-      final resp = await _dio.post('/api/trips/generate', data: {
-        'destination': destination,
-        'duration_days': durationDays,
-        'pace': pace,
-        'budget': budget,
-        'transports': transports,
-        'interests': interests,
-        if (userId != null) 'user_id': userId,
-      });
-      return Trip.fromJson(resp.data as Map<String, dynamic>);
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 402) {
-        throw ApiException(statusCode: 402, message: 'Pro required');
-      }
-      throw _handleError(e);
-    } catch (e) {
-      throw _handleError(e);
-    }
+  }) =>
+      trips.generateTrip(
+        destination: destination,
+        durationDays: durationDays,
+        pace: pace,
+        transports: transports,
+        budget: budget,
+        interests: interests,
+      );
+
+  Future<List<Trip>> getTrips(String userId) => trips.getUserTrips(userId);
+
+  Future<Trip> getTrip(String tripId) => trips.getTripById(tripId);
+
+  // --- COMMUNITY BRIDGE METHODS ---
+  Future<List<Map<String, dynamic>>> getCommunityFeed() async {
+    final items = await community.getPublicFeed();
+    return items.map((item) {
+      return {
+        'trip': item.trip.toJson(),
+        'author': {
+          'name': item.authorName,
+          'pseudo': item.authorPseudo,
+          'avatar_emoji': item.authorAvatarEmoji,
+          'picture': item.authorPicture,
+          'is_pro': item.authorIsPro,
+        },
+      };
+    }).toList();
   }
 
-  Future<List<Trip>> getTrips(String userId) async {
-    try {
-      final resp = await _dio.get('/api/trips/$userId');
-      final data = resp.data;
-      if (data is List) {
-        return data.map((e) => Trip.fromJson(e as Map<String, dynamic>)).toList();
-      }
-      if (data is Map && data['trips'] is List) {
-        return (data['trips'] as List)
-            .map((e) => Trip.fromJson(e as Map<String, dynamic>))
-            .toList();
-      }
-      return [];
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
+  Future<Map<String, dynamic>> likeTrip(String tripId) =>
+      community.likeTrip(tripId);
 
-  Future<Trip> getTrip(String tripId) async {
-    try {
-      final resp = await _dio.get('/api/trip/$tripId');
-      return Trip.fromJson(resp.data as Map<String, dynamic>);
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
+  // --- GAMIFICATION BRIDGE METHODS ---
+  Future<UserProfile> getProfile(String userId) => gamification.getProfile(userId);
 
-  // PROFILE
-  Future<UserProfile> getProfile(String userId) async {
-    try {
-      final resp = await _dio.get('/api/profile/$userId');
-      return UserProfile.fromJson(resp.data as Map<String, dynamic>);
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
+  Future<Map<String, dynamic>> awardXP(String userId, String action) =>
+      gamification.awardXp(userId: userId, action: action);
+
+  Future<Map<String, dynamic>> getXpRewards() => gamification.getXpRewards();
+
+  Future<List<Map<String, dynamic>>> getBadges() => gamification.getBadges();
 
   Future<Map<String, dynamic>> getPublicUser(String userId) async {
-    try {
-      final resp = await _dio.get('/api/community/user/$userId');
-      return resp.data as Map<String, dynamic>;
-    } catch (e) {
-      throw _handleError(e);
-    }
+    final profile = await gamification.getProfile(userId);
+    return {
+      'user_id': profile.userId,
+      'name': profile.name,
+      'pseudo': profile.pseudo,
+      'avatar_emoji': profile.avatarEmoji,
+      'country': profile.country,
+      'city': profile.city,
+      'xp': profile.xp,
+      'level': profile.level,
+      'streak': profile.streak,
+      'trips_count': profile.tripsCount,
+      'badges': profile.badges,
+      'is_pro': profile.isPro,
+    };
   }
 
-  Future<void> awardXp(String userId, String action) async {
-    try {
-      await _dio.post('/api/profile/xp', data: {
-        'user_id': userId,
-        'action': action,
-      });
-    } catch (_) {
-      // Non-critical, ignore
-    }
+  // --- PRO BRIDGE METHODS ---
+  Future<Map<String, dynamic>> createCheckout(String tier, {String? userId}) async {
+    final uid = userId ?? (await SecureStorageService.instance.getUserId()) ?? '';
+    final res = await pro.createCheckoutSession(userId: uid, tier: tier);
+    return {
+      'checkout_url': res.checkoutUrl,
+      'session_id': res.sessionId,
+    };
   }
 
-  // COMMUNITY
-  Future<List<Map<String, dynamic>>> getCommunityFeed() async {
-    try {
-      final resp = await _dio.get('/api/community/feed');
-      final data = resp.data;
-      if (data is List) {
-        return data.cast<Map<String, dynamic>>();
-      }
-      if (data is Map && data['feed'] is List) {
-        return (data['feed'] as List).cast<Map<String, dynamic>>();
-      }
-      return [];
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  // BADGES
-  Future<List<Map<String, dynamic>>> getBadges() async {
-    try {
-      final resp = await _dio.get('/api/badges');
-      final data = resp.data;
-      if (data is List) return data.cast<Map<String, dynamic>>();
-      if (data is Map && data['badges'] is List) {
-        return (data['badges'] as List).cast<Map<String, dynamic>>();
-      }
-      return [];
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  // XP REWARDS
-  Future<Map<String, dynamic>> getXpRewards() async {
-    try {
-      final resp = await _dio.get('/api/xp/rewards');
-      return resp.data as Map<String, dynamic>;
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  // PRO
   Future<List<Map<String, dynamic>>> getProTiers() async {
-    try {
-      final resp = await _dio.get('/api/pro/tiers');
-      final data = resp.data;
-      if (data is List) return data.cast<Map<String, dynamic>>();
-      if (data is Map && data['tiers'] is List) {
-        return (data['tiers'] as List).cast<Map<String, dynamic>>();
-      }
-      return [];
-    } catch (e) {
-      throw _handleError(e);
-    }
+    return const [
+      {
+        'id': 'monthly',
+        'name': 'Mensuel',
+        'price': '4.99',
+        'currency': '€',
+        'period': 'mois',
+        'benefits': [
+          'Itinéraires illimités 🦜',
+          'Accès à la communauté',
+          'Badges exclusifs',
+          'Support prioritaire',
+        ],
+        'is_best': false,
+      },
+      {
+        'id': 'yearly',
+        'name': 'Annuel',
+        'price': '39.99',
+        'currency': '€',
+        'period': 'an',
+        'benefits': [
+          'Tout du plan Mensuel',
+          'Économisez 34%',
+          'Fonctionnalités bêta',
+          'Badge "Voyageur Pro"',
+        ],
+        'is_best': true,
+      },
+      {
+        'id': 'lifetime',
+        'name': 'À vie',
+        'price': '79.99',
+        'currency': '€',
+        'period': '',
+        'benefits': [
+          'Accès à vie illimité',
+          'Toutes les futures fonctionnalités IA',
+          'Badge légendaire',
+          'Accès VIP',
+        ],
+        'is_best': false,
+      },
+    ];
   }
 
-  Future<Map<String, dynamic>> createCheckout(String tierId) async {
-    try {
-      final resp = await _dio.post('/api/pro/checkout', data: {
-        'tier_id': tierId,
-      });
-      return resp.data as Map<String, dynamic>;
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
+  Future<Map<String, dynamic>> getProStatus(String userId) =>
+      pro.getProStatus(userId);
 
-  Future<Map<String, dynamic>> getProStatus(String sessionId) async {
-    try {
-      final resp = await _dio.get('/api/pro/status/$sessionId');
-      return resp.data as Map<String, dynamic>;
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
-
-  Future<Map<String, dynamic>> getProMe() async {
-    try {
-      final resp = await _dio.get('/api/pro/me');
-      return resp.data as Map<String, dynamic>;
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
+  // --- INTERESTS BRIDGE METHODS ---
+  Future<List<Interest>> getInterests() => interests.getInterests();
 }

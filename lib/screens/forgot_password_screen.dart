@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../services/api_service.dart';
+import '../api/api.dart';
+import '../core/utils/form_validators.dart';
+import '../providers/auth_provider.dart';
 import '../theme.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
@@ -31,8 +33,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   }
 
   Future<void> _sendCode() async {
-    if (_emailCtrl.text.trim().isEmpty || !_emailCtrl.text.contains('@')) {
-      setState(() => _error = 'Veuillez saisir un email valide');
+    final emailError = FormValidators.validateEmail(_emailCtrl.text);
+    if (emailError != null) {
+      setState(() => _error = emailError);
       return;
     }
     setState(() {
@@ -40,11 +43,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       _error = null;
     });
     try {
-      await ApiService.instance.forgotPassword(_emailCtrl.text.trim());
+      await ref.read(authProvider.notifier).forgotPassword(_emailCtrl.text.trim());
       if (mounted) {
         setState(() {
           _step = 2;
-          _success = 'Un code a été envoyé à ${_emailCtrl.text.trim()}';
+          _success = 'Un code de sécurité a été envoyé à ${_emailCtrl.text.trim()} 🦜';
         });
       }
     } on ApiException catch (e) {
@@ -57,12 +60,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   }
 
   Future<void> _resetPassword() async {
-    if (_codeCtrl.text.trim().length != 6) {
-      setState(() => _error = 'Le code doit contenir 6 chiffres');
+    final otpError = FormValidators.validateOtpCode(_codeCtrl.text);
+    if (otpError != null) {
+      setState(() => _error = otpError);
       return;
     }
-    if (_newPasswordCtrl.text.length < 6) {
-      setState(() => _error = 'Le mot de passe doit contenir au moins 6 caractères');
+    final pwdError = FormValidators.validatePassword(_newPasswordCtrl.text);
+    if (pwdError != null) {
+      setState(() => _error = pwdError);
       return;
     }
     setState(() {
@@ -70,7 +75,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       _error = null;
     });
     try {
-      await ApiService.instance.resetPassword(
+      await ref.read(authProvider.notifier).resetPassword(
         email: _emailCtrl.text.trim(),
         code: _codeCtrl.text.trim(),
         newPassword: _newPasswordCtrl.text,
@@ -78,7 +83,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Mot de passe réinitialisé avec succès !'),
+            content: Text('Mot de passe réinitialisé avec succès ! 🦜✨'),
             backgroundColor: VoyagoColors.primary,
           ),
         );

@@ -1,7 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../api/api.dart';
 import '../models/interest.dart';
-import '../services/api_service.dart';
 
+final interestsApiProvider = Provider<InterestsApi>((ref) => InterestsApi());
+
+/// Provider pour la liste des 10 catégories d'intérêts de voyage
 final interestsProvider = FutureProvider<List<Interest>>((ref) async {
-  return ApiService.instance.getInterests();
+  final api = ref.watch(interestsApiProvider);
+  return api.getInterests();
 });
