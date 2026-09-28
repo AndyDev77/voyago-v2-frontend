@@ -82,10 +82,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         return;
       }
 
-      // S'assurer qu'un identifiant invité existe
+      // S'assurer qu'un identifiant invité valide existe
       var guestId = await _storage.getGuestUserId();
-      if (guestId == null || guestId.isEmpty) {
-        guestId = const Uuid().v4();
+      if (guestId == null || guestId.isEmpty || !guestId.startsWith('guest_')) {
+        guestId = 'guest_${const Uuid().v4()}';
         await _storage.setGuestUserId(guestId);
       }
 
@@ -200,7 +200,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> loginGuest() async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final guestId = await _storage.getGuestUserId() ?? const Uuid().v4();
+      var guestId = await _storage.getGuestUserId();
+      if (guestId == null || guestId.isEmpty || !guestId.startsWith('guest_')) {
+        guestId = 'guest_${const Uuid().v4()}';
+        await _storage.setGuestUserId(guestId);
+      }
       final result = await _authApi.loginGuest(guestId: guestId);
 
       state = AuthState(

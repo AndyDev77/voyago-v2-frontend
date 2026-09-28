@@ -6,6 +6,7 @@ import '../core/utils/form_validators.dart';
 import '../providers/auth_provider.dart';
 import '../providers/trips_provider.dart';
 import '../theme.dart';
+import '../widgets/auth_bottom_sheet.dart';
 
 class ConfigureScreen extends ConsumerStatefulWidget {
   final List<String> selectedInterests;
@@ -62,14 +63,33 @@ class _ConfigureScreenState extends ConsumerState<ConfigureScreen> {
       return;
     }
 
+    // Si l'utilisateur n'est pas connecté, afficher le modal d'authentification
+    final authState = ref.read(authProvider);
+    if (!authState.isLoggedIn) {
+      final loggedIn = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => const AuthBottomSheet(
+          title: 'Finalisez votre voyage avec Voyago ! 🦜',
+          subtitle: 'Connectez-vous ou créez votre compte pour sauvegarder cet itinéraire sur votre profil.',
+        ),
+      );
+
+      // Si l'utilisateur a annulé le modal
+      if (loggedIn != true || !mounted) {
+        return;
+      }
+    }
+
     setState(() {
       _isGenerating = true;
       _error = null;
     });
 
     try {
-      final authState = ref.read(authProvider);
-      final userId = authState.user?.userId;
+      final currentAuth = ref.read(authProvider);
+      final userId = currentAuth.user?.userId;
 
       final trip = await ref.read(tripGeneratorProvider.notifier).generate(
         destination: _destinationCtrl.text.trim(),
