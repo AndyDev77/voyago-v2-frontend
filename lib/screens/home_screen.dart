@@ -17,12 +17,17 @@ class HomeScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: VoyagoColors.background,
       appBar: AppBar(
-        title: const Row(
+        title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('🦜', style: TextStyle(fontSize: 22)),
-            SizedBox(width: 8),
-            Text(
+            Image.asset(
+              'assets/logo/logo.png',
+              width: 28,
+              height: 28,
+              errorBuilder: (_, __, ___) => const Text('🦜', style: TextStyle(fontSize: 22)),
+            ),
+            const SizedBox(width: 8),
+            const Text(
               'Voyago',
               style: TextStyle(
                 fontSize: 22,

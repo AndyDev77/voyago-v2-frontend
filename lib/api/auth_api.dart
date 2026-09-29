@@ -170,6 +170,10 @@ class AuthApi {
     String? name,
     String? pseudo,
     String? avatarEmoji,
+    String? dateOfBirth,
+    String? gender,
+    String? thermalSensitivity,
+    bool? onboardingCompleted,
     String? country,
     String? city,
   }) async {
@@ -177,12 +181,25 @@ class AuthApi {
       if (name != null) 'name': name.trim(),
       if (pseudo != null) 'pseudo': pseudo.trim(),
       if (avatarEmoji != null) 'avatar_emoji': avatarEmoji,
+      if (dateOfBirth != null) 'date_of_birth': dateOfBirth.trim(),
+      if (gender != null) 'gender': gender.trim(),
+      if (thermalSensitivity != null) 'thermal_sensitivity': thermalSensitivity.trim(),
+      if (onboardingCompleted != null) 'onboarding_completed': onboardingCompleted,
       if (country != null) 'country': country.trim(),
       if (city != null) 'city': city.trim(),
     };
 
-    final data = await _client.patch(Endpoints.updateProfile, data: payload);
-    final updatedUser = AuthUser.fromJson(data['user'] as Map<String, dynamic>);
+    final data = await _client.put(Endpoints.updateProfile, data: payload);
+    final Map<String, dynamic> userMap;
+    if (data is Map<String, dynamic>) {
+      userMap = (data['user'] is Map<String, dynamic>)
+          ? (data['user'] as Map<String, dynamic>)
+          : data;
+    } else {
+      userMap = <String, dynamic>{};
+    }
+
+    final updatedUser = AuthUser.fromJson(userMap);
     await _storage.setAuthUser(updatedUser);
     return updatedUser;
   }

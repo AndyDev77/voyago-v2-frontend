@@ -1,3 +1,42 @@
+enum ThermalSensitivity {
+  cold('cold', 'Runs Cold', 'Frileux', 'ac_unit'),
+  balanced('balanced', 'Balanced', 'Équilibré', 'checkroom'),
+  warm('warm', 'Runs Warm', 'Chaleureux', 'wb_sunny');
+
+  final String value;
+  final String label;
+  final String labelFr;
+  final String iconName;
+  const ThermalSensitivity(this.value, this.label, this.labelFr, this.iconName);
+
+  static ThermalSensitivity fromString(String? val) {
+    if (val == null) return ThermalSensitivity.balanced;
+    for (final s in ThermalSensitivity.values) {
+      if (s.value == val.toLowerCase()) return s;
+    }
+    return ThermalSensitivity.balanced;
+  }
+}
+
+enum UserGender {
+  male('male', 'Homme'),
+  female('female', 'Femme'),
+  other('other', 'Autre'),
+  preferNotToSay('prefer_not_to_say', 'Préfère ne pas dire');
+
+  final String value;
+  final String label;
+  const UserGender(this.value, this.label);
+
+  static UserGender fromString(String? val) {
+    if (val == null) return UserGender.preferNotToSay;
+    for (final g in UserGender.values) {
+      if (g.value == val.toLowerCase()) return g;
+    }
+    return UserGender.preferNotToSay;
+  }
+}
+
 class AuthUser {
   final String userId;
   final String authProvider;
@@ -7,6 +46,9 @@ class AuthUser {
   final String? pseudo;
   final String? avatarEmoji;
   final String? dateOfBirth;
+  final UserGender gender;
+  final ThermalSensitivity thermalSensitivity;
+  final bool onboardingCompleted;
   final String? country;
   final String? city;
   final bool isPro;
@@ -22,6 +64,9 @@ class AuthUser {
     this.pseudo,
     this.avatarEmoji,
     this.dateOfBirth,
+    this.gender = UserGender.preferNotToSay,
+    this.thermalSensitivity = ThermalSensitivity.balanced,
+    this.onboardingCompleted = false,
     this.country,
     this.city,
     required this.isPro,
@@ -43,6 +88,13 @@ class AuthUser {
       pseudo: json['pseudo']?.toString(),
       avatarEmoji: json['avatar_emoji']?.toString() ?? json['avatarEmoji']?.toString(),
       dateOfBirth: json['date_of_birth']?.toString() ?? json['dateOfBirth']?.toString(),
+      gender: UserGender.fromString(json['gender']?.toString()),
+      thermalSensitivity: ThermalSensitivity.fromString(
+        json['thermal_sensitivity']?.toString() ?? json['thermalSensitivity']?.toString(),
+      ),
+      onboardingCompleted: json['onboarding_completed'] as bool? ??
+          json['onboardingCompleted'] as bool? ??
+          false,
       country: json['country']?.toString(),
       city: json['city']?.toString(),
       isPro: json['is_pro'] as bool? ?? json['isPro'] as bool? ?? false,
@@ -65,6 +117,9 @@ class AuthUser {
       if (pseudo != null) 'pseudo': pseudo,
       if (avatarEmoji != null) 'avatar_emoji': avatarEmoji,
       if (dateOfBirth != null) 'date_of_birth': dateOfBirth,
+      'gender': gender.value,
+      'thermal_sensitivity': thermalSensitivity.value,
+      'onboarding_completed': onboardingCompleted,
       if (country != null) 'country': country,
       if (city != null) 'city': city,
       'is_pro': isPro,
@@ -77,6 +132,10 @@ class AuthUser {
     String? name,
     String? pseudo,
     String? avatarEmoji,
+    String? dateOfBirth,
+    UserGender? gender,
+    ThermalSensitivity? thermalSensitivity,
+    bool? onboardingCompleted,
     String? country,
     String? city,
     bool? isPro,
@@ -90,7 +149,10 @@ class AuthUser {
       picture: picture,
       pseudo: pseudo ?? this.pseudo,
       avatarEmoji: avatarEmoji ?? this.avatarEmoji,
-      dateOfBirth: dateOfBirth,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
+      gender: gender ?? this.gender,
+      thermalSensitivity: thermalSensitivity ?? this.thermalSensitivity,
+      onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
       country: country ?? this.country,
       city: city ?? this.city,
       isPro: isPro ?? this.isPro,

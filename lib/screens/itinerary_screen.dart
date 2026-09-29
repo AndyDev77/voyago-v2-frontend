@@ -663,7 +663,10 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                   dayNumber: _selectedDay,
                   ambianceLabel: ambiance.phaseLabel,
                   ambianceIcon: ambiance.phaseIcon,
-                  aiTip: getWeatherAiTip(activeWeather),
+                  aiTip: getWeatherAiTip(
+                    activeWeather,
+                    ref.watch(currentUserProvider)?.thermalSensitivity,
+                  ),
                 ),
               ),
             ),

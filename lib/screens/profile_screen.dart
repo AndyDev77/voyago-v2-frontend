@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../models/auth_user.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/trips_provider.dart';
@@ -76,6 +77,8 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
   final _cityCtrl = TextEditingController();
   String? _editAvatarEmoji;
   String? _editCountry;
+  ThermalSensitivity? _editThermal;
+  UserGender? _editGender;
   bool _isSaving = false;
 
   static const List<String> _avatarEmojis = [
@@ -110,6 +113,8 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
     _cityCtrl.text = user.city ?? '';
     _editAvatarEmoji = user.avatarEmoji;
     _editCountry = user.country;
+    _editThermal = user.thermalSensitivity;
+    _editGender = user.gender;
     setState(() => _isEditing = true);
   }
 
@@ -121,6 +126,8 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
         if (_editAvatarEmoji != null) 'avatar_emoji': _editAvatarEmoji,
         if (_editCountry != null) 'country': _editCountry,
         if (_cityCtrl.text.isNotEmpty) 'city': _cityCtrl.text.trim(),
+        if (_editThermal != null) 'thermal_sensitivity': _editThermal!.value,
+        if (_editGender != null) 'gender': _editGender!.value,
       });
       if (mounted) setState(() => _isEditing = false);
     } catch (e) {
@@ -283,6 +290,18 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
                         style: const TextStyle(color: VoyagoColors.muted, fontSize: 13),
                       ),
                     ],
+                    const SizedBox(height: 10),
+                    // Thermal Sensitivity & Gender Badges
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildThermalBadge(user.thermalSensitivity),
+                        if (user.gender != UserGender.preferNotToSay)
+                          _buildGenderBadge(user.gender),
+                      ],
+                    ),
                   ],
                 ],
               ),
@@ -439,6 +458,96 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
             const SizedBox(height: 40),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildThermalBadge(ThermalSensitivity sensitivity) {
+    final Color badgeColor;
+    final IconData icon;
+    final String label;
+
+    switch (sensitivity) {
+      case ThermalSensitivity.cold:
+        badgeColor = const Color(0xFF3B82F6);
+        icon = Icons.ac_unit;
+        label = 'Frileux';
+        break;
+      case ThermalSensitivity.balanced:
+        badgeColor = const Color(0xFF0DF2CC);
+        icon = Icons.checkroom;
+        label = 'Équilibré';
+        break;
+      case ThermalSensitivity.warm:
+        badgeColor = const Color(0xFFF97316);
+        icon = Icons.wb_sunny;
+        label = 'Chaleureux';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: badgeColor.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: badgeColor),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: badgeColor,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGenderBadge(UserGender gender) {
+    final IconData icon;
+    switch (gender) {
+      case UserGender.male:
+        icon = Icons.male;
+        break;
+      case UserGender.female:
+        icon = Icons.female;
+        break;
+      case UserGender.other:
+        icon = Icons.transgender;
+        break;
+      case UserGender.preferNotToSay:
+        icon = Icons.person;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: VoyagoColors.muted.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: VoyagoColors.muted.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.white70),
+          const SizedBox(width: 5),
+          Text(
+            gender.label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

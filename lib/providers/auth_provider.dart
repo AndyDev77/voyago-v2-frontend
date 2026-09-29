@@ -272,8 +272,36 @@ class AuthNotifier extends StateNotifier<AuthState> {
         name: data?['name']?.toString(),
         pseudo: data?['pseudo']?.toString(),
         avatarEmoji: data?['avatar_emoji']?.toString() ?? data?['avatarEmoji']?.toString(),
+        dateOfBirth: data?['date_of_birth']?.toString() ?? data?['dateOfBirth']?.toString(),
+        gender: data?['gender']?.toString(),
+        thermalSensitivity: data?['thermal_sensitivity']?.toString() ?? data?['thermalSensitivity']?.toString(),
+        onboardingCompleted: data?['onboarding_completed'] as bool? ?? data?['onboardingCompleted'] as bool?,
         country: data?['country']?.toString(),
         city: data?['city']?.toString(),
+      );
+      state = state.copyWith(user: updated, isLoading: false);
+    } on ApiException catch (e) {
+      state = state.copyWith(isLoading: false, error: e.message);
+      rethrow;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
+    }
+  }
+
+  /// Finalisation de l'onboarding obligatoire (Date de naissance, Genre, Sensibilité thermique)
+  Future<void> completeOnboarding({
+    required String dateOfBirth,
+    required UserGender gender,
+    required ThermalSensitivity thermalSensitivity,
+  }) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final updated = await _authApi.updateProfile(
+        dateOfBirth: dateOfBirth,
+        gender: gender.value,
+        thermalSensitivity: thermalSensitivity.value,
+        onboardingCompleted: true,
       );
       state = state.copyWith(user: updated, isLoading: false);
     } on ApiException catch (e) {
