@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import '../data/countries_data.dart';
 import '../models/auth_user.dart';
 import '../models/trip.dart';
 import '../models/user_profile.dart';
@@ -117,6 +120,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
   ThermalSensitivity? _editThermal;
   UserGender? _editGender;
   bool _isSaving = false;
+  bool _isUploadingPhoto = false;
 
   static const List<String> _avatarEmojis = [
     '🦜', '🦁', '🐯', '🦊', '🐺', '🐻',
@@ -168,6 +172,230 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
     _editThermal = user.thermalSensitivity;
     _editGender = user.gender;
     setState(() => _isEditing = true);
+  }
+
+  Future<void> _pickAndUploadPhoto(ImageSource source) async {
+    Navigator.of(context, rootNavigator: true).pop();
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+
+      setState(() => _isUploadingPhoto = true);
+      final file = File(picked.path);
+
+      await ref.read(authProvider.notifier).uploadProfilePicture(file);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Text('Photo de profil mise à jour avec succès !'),
+              ],
+            ),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        final errStr = e.toString();
+        final message = errStr.contains('channel-error') || errStr.contains('MissingPluginException')
+            ? 'Le plugin photo/caméra nécessite de redémarrer l\'application. Veuillez arrêter et relancer "flutter run".'
+            : 'Erreur lors de l\'envoi de la photo: $errStr';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: VoyagoColors.coral,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingPhoto = false);
+    }
+  }
+
+  Future<void> _deletePhoto() async {
+    Navigator.of(context, rootNavigator: true).pop();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141721),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Supprimer la photo ?', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Votre photo de profil sera supprimée du cloud et de votre compte. L\'avatar emoji sera réactivé.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: VoyagoColors.coral),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      setState(() => _isUploadingPhoto = true);
+      await ref.read(authProvider.notifier).deleteProfilePicture();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Photo supprimée avec succès. Avatar emoji restauré.'),
+            backgroundColor: _ProfileColors.goldDark,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: ${e.toString()}'),
+            backgroundColor: VoyagoColors.coral,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingPhoto = false);
+    }
+  }
+
+  void _showPhotoOptionsModal(AuthUser user) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141721),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(color: _ProfileColors.gold.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Photo de profil',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Personnalisez votre apparence sur Voyago',
+              style: TextStyle(color: VoyagoColors.muted, fontSize: 13),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              tileColor: const Color(0xFF1C202F),
+              leading: const Icon(Icons.camera_alt_outlined, color: _ProfileColors.gold),
+              title: const Text('Prendre une photo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+              onTap: () => _pickAndUploadPhoto(ImageSource.camera),
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              tileColor: const Color(0xFF1C202F),
+              leading: const Icon(Icons.photo_library_outlined, color: _ProfileColors.gold),
+              title: const Text('Choisir dans la galerie', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+              onTap: () => _pickAndUploadPhoto(ImageSource.gallery),
+            ),
+            if (user.picture != null && user.picture!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              ListTile(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                tileColor: VoyagoColors.coral.withValues(alpha: 0.12),
+                leading: const Icon(Icons.delete_outline, color: VoyagoColors.coral),
+                title: const Text(
+                  'Supprimer la photo (activer avatar emoji)',
+                  style: TextStyle(color: VoyagoColors.coral, fontWeight: FontWeight.w600),
+                ),
+                onTap: _deletePhoto,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCountryPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _CountryPickerSheet(
+        initialCountry: _countryCtrl.text,
+        onSelected: (country) {
+          setState(() {
+            final newCountry = country.displayName;
+            if (_countryCtrl.text != newCountry) {
+              _countryCtrl.text = newCountry;
+              _cityCtrl.text = '';
+            }
+          });
+        },
+      ),
+    );
+  }
+
+  void _showCityPicker(BuildContext context) {
+    final currentCountry = _countryCtrl.text.trim();
+    if (currentCountry.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez d\'abord sélectionner votre pays de résidence.'),
+          backgroundColor: _ProfileColors.goldDark,
+        ),
+      );
+      _showCountryPicker(context);
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _CityPickerSheet(
+        countryName: currentCountry,
+        initialCity: _cityCtrl.text,
+        onSelected: (cityName) {
+          setState(() {
+            _cityCtrl.text = cityName;
+          });
+        },
+      ),
+    );
   }
 
   Future<void> _saveProfile() async {
@@ -296,7 +524,17 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
                           border: Border.all(color: _ProfileColors.gold, width: 2),
                         ),
                         alignment: Alignment.center,
-                        child: Text(user.avatarDisplay, style: const TextStyle(fontSize: 30)),
+                        child: user.picture != null && user.picture!.isNotEmpty
+                            ? ClipOval(
+                                child: Image.network(
+                                  user.picture!,
+                                  width: 56,
+                                  height: 56,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Text(user.avatarDisplay, style: const TextStyle(fontSize: 30)),
+                                ),
+                              )
+                            : Text(user.avatarDisplay, style: const TextStyle(fontSize: 30)),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -668,10 +906,23 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
                           ],
                         ),
                         alignment: Alignment.center,
-                        child: Text(
-                          user.avatarDisplay,
-                          style: const TextStyle(fontSize: 52),
-                        ),
+                        child: user.picture != null && user.picture!.isNotEmpty
+                            ? ClipOval(
+                                child: Image.network(
+                                  user.picture!,
+                                  width: 104,
+                                  height: 104,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Text(
+                                    user.avatarDisplay,
+                                    style: const TextStyle(fontSize: 52),
+                                  ),
+                                ),
+                              )
+                            : Text(
+                                user.avatarDisplay,
+                                style: const TextStyle(fontSize: 52),
+                              ),
                       ),
                       Positioned(
                         bottom: 0,
@@ -1956,29 +2207,137 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
           ),
           const SizedBox(height: 16),
 
-          // Sélecteur d'Avatar Emoji
-          const Text(
-            'Choisissez votre avatar :',
-            style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 10),
-          Center(
-            child: Container(
-              width: 70,
-              height: 70,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF141721),
-                border: Border.all(color: _ProfileColors.gold, width: 2),
+          // Photo de profil & Avatar
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Photo ou avatar :',
+                style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
               ),
-              alignment: Alignment.center,
-              child: Text(
-                _editAvatarEmoji ?? user.avatarDisplay,
-                style: const TextStyle(fontSize: 38),
+              if (user.picture != null && user.picture!.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _ProfileColors.gold.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _ProfileColors.gold.withValues(alpha: 0.4)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check, size: 12, color: _ProfileColors.gold),
+                      SizedBox(width: 4),
+                      Text('Photo active', style: TextStyle(color: _ProfileColors.gold, fontSize: 11, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: GestureDetector(
+              onTap: () => _showPhotoOptionsModal(user),
+              child: Stack(
+                children: [
+                  Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF141721),
+                      border: Border.all(color: _ProfileColors.gold, width: 2.5),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: _ProfileColors.goldGlow,
+                          blurRadius: 14,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: _isUploadingPhoto
+                        ? const CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: _ProfileColors.gold,
+                          )
+                        : (user.picture != null && user.picture!.isNotEmpty)
+                            ? ClipOval(
+                                child: Image.network(
+                                  user.picture!,
+                                  width: 90,
+                                  height: 90,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Text(
+                                    _editAvatarEmoji ?? user.avatarDisplay,
+                                    style: const TextStyle(fontSize: 44),
+                                  ),
+                                ),
+                              )
+                            : Text(
+                                _editAvatarEmoji ?? user.avatarDisplay,
+                                style: const TextStyle(fontSize: 44),
+                              ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: _ProfileColors.gold,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF10131C), width: 2),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x66000000),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        size: 15,
+                        color: Color(0xFF0A0A0F),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+          Center(
+            child: Wrap(
+              spacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _showPhotoOptionsModal(user),
+                  icon: const Icon(Icons.add_a_photo_outlined, size: 16, color: _ProfileColors.gold),
+                  label: Text(
+                    (user.picture != null && user.picture!.isNotEmpty) ? 'Modifier la photo' : 'Ajouter une photo',
+                    style: const TextStyle(color: _ProfileColors.gold, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
+                if (user.picture != null && user.picture!.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: _deletePhoto,
+                    icon: const Icon(Icons.delete_outline, size: 16, color: VoyagoColors.coral),
+                    label: const Text(
+                      'Retirer',
+                      style: TextStyle(color: VoyagoColors.coral, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Ou choisissez un avatar emoji alternatif :',
+            style: TextStyle(color: Colors.white60, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -1986,7 +2345,18 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
             children: _avatarEmojis.map((emoji) {
               final isSelected = emoji == (_editAvatarEmoji ?? user.avatarDisplay);
               return GestureDetector(
-                onTap: () => setState(() => _editAvatarEmoji = emoji),
+                onTap: () {
+                  setState(() => _editAvatarEmoji = emoji);
+                  if (user.picture != null && user.picture!.isNotEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Avatar emoji mis à jour. Note : pour l\'afficher en priorité, vous pouvez retirer votre photo.'),
+                        duration: Duration(seconds: 3),
+                        backgroundColor: _ProfileColors.goldDark,
+                      ),
+                    );
+                  }
+                },
                 child: Container(
                   width: 44,
                   height: 44,
@@ -2020,25 +2390,32 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
           ),
           const SizedBox(height: 14),
 
-          // Champ Ville
-          TextField(
-            controller: _cityCtrl,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              labelText: 'Ville de résidence',
-              prefixIcon: Icon(Icons.location_city, color: _ProfileColors.gold),
-            ),
+          // Champ Pays (EN PREMIER)
+          _buildSelectField(
+            label: 'Pays de résidence',
+            value: _countryCtrl.text.isNotEmpty
+                ? '${CountriesData.getFlag(_countryCtrl.text)} ${_countryCtrl.text}'
+                : 'Sélectionner votre pays',
+            hasValue: _countryCtrl.text.isNotEmpty,
+            prefixIcon: Icons.public,
+            onTap: () => _showCountryPicker(context),
           ),
           const SizedBox(height: 14),
 
-          // Champ Pays
-          TextField(
-            controller: _countryCtrl,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              labelText: 'Pays',
-              prefixIcon: Icon(Icons.public, color: _ProfileColors.gold),
-            ),
+          // Champ Ville (CONDITIONNÉ EN FONCTION DU PAYS)
+          _buildSelectField(
+            label: 'Ville de résidence',
+            value: _cityCtrl.text.isNotEmpty
+                ? _cityCtrl.text
+                : (_countryCtrl.text.isNotEmpty
+                    ? 'Sélectionner une ville (${_countryCtrl.text})'
+                    : 'Sélectionnez d\'abord un pays'),
+            hasValue: _cityCtrl.text.isNotEmpty,
+            prefixIcon: Icons.location_city,
+            subtitle: _countryCtrl.text.isNotEmpty
+                ? 'Conditionné aux villes de ${_countryCtrl.text}'
+                : 'Nécessite le choix préalable d\'un pays',
+            onTap: () => _showCityPicker(context),
           ),
 
           const SizedBox(height: 20),
@@ -2136,6 +2513,76 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
       ),
     );
   }
+
+  Widget _buildSelectField({
+    required String label,
+    required String value,
+    required bool hasValue,
+    required IconData prefixIcon,
+    String? subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141721),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: hasValue ? _ProfileColors.gold.withValues(alpha: 0.5) : Colors.white12,
+            width: hasValue ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(prefixIcon, color: _ProfileColors.gold, size: 22),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: hasValue ? _ProfileColors.goldLight : Colors.white60,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      color: hasValue ? Colors.white : Colors.white38,
+                      fontSize: 15,
+                      fontWeight: hasValue ? FontWeight.bold : FontWeight.normal,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.35),
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const Icon(Icons.keyboard_arrow_down_rounded, color: _ProfileColors.gold, size: 24),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Peintre personnalisé pour l'anneau de progression circulaire autour de l'avatar
@@ -2187,5 +2634,565 @@ class _RadialProgressPainter extends CustomPainter {
     return oldDelegate.progress != progress ||
         oldDelegate.progressColor != progressColor ||
         oldDelegate.strokeWidth != strokeWidth;
+  }
+}
+
+/// Feuille modale dynamique pour la sélection du pays avec recherche en temps réel (Monde entier)
+class _CountryPickerSheet extends StatefulWidget {
+  final String initialCountry;
+  final ValueChanged<CountryInfo> onSelected;
+
+  const _CountryPickerSheet({
+    required this.initialCountry,
+    required this.onSelected,
+  });
+
+  @override
+  State<_CountryPickerSheet> createState() => _CountryPickerSheetState();
+}
+
+class _CountryPickerSheetState extends State<_CountryPickerSheet> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  List<CountryInfo> _allCountries = [];
+  List<CountryInfo> _filtered = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCountries();
+    _searchCtrl.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadCountries() async {
+    final list = await CountriesData.getCountries();
+    if (mounted) {
+      setState(() {
+        _allCountries = list;
+        _filtered = list;
+        _isLoading = false;
+      });
+      _onSearchChanged();
+    }
+  }
+
+  void _onSearchChanged() {
+    final query = _searchCtrl.text.trim().toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        _filtered = _allCountries;
+      } else {
+        _filtered = _allCountries.where((c) {
+          return c.displayName.toLowerCase().contains(query) ||
+              c.name.toLowerCase().contains(query) ||
+              c.code.toLowerCase().contains(query);
+        }).toList();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchCtrl.text.trim();
+    final hasExactMatch = _filtered.any(
+      (c) => c.displayName.toLowerCase() == query.toLowerCase() ||
+          c.name.toLowerCase() == query.toLowerCase(),
+    );
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (ctx, scrollController) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF10131C),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(top: BorderSide(color: _ProfileColors.gold, width: 1.5)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.public, color: _ProfileColors.gold, size: 24),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Sélectionnez votre pays',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (!_isLoading) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '${_allCountries.length} pays du monde disponibles',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.4),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white60),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: TextField(
+                controller: _searchCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Rechercher un pays...',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  prefixIcon: const Icon(Icons.search, color: _ProfileColors.gold),
+                  suffixIcon: query.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.white60),
+                          onPressed: () => _searchCtrl.clear(),
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: const Color(0xFF181C28),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Colors.white12),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Colors.white12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: _ProfileColors.gold),
+                  ),
+                ),
+              ),
+            ),
+            const Divider(color: Colors.white10, height: 16),
+            if (_isLoading)
+              const Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: _ProfileColors.gold,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Chargement des pays du monde...',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    if (query.isNotEmpty && !hasExactMatch) ...[
+                      ListTile(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        tileColor: _ProfileColors.gold.withValues(alpha: 0.1),
+                        leading: const Text('🌍', style: TextStyle(fontSize: 26)),
+                        title: Text(
+                          'Utiliser "$query"',
+                          style: const TextStyle(
+                            color: _ProfileColors.gold,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: const Text(
+                          'Définir ce pays personnalisé',
+                          style: TextStyle(color: Colors.white60, fontSize: 11),
+                        ),
+                        trailing: const Icon(Icons.add_circle_outline, color: _ProfileColors.gold),
+                        onTap: () {
+                          widget.onSelected(
+                            CountryInfo(
+                              name: query,
+                              frenchName: query,
+                              code: '',
+                              flag: '🌍',
+                            ),
+                          );
+                          Navigator.pop(context);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    ..._filtered.map((country) {
+                      final isSelected = country.displayName.toLowerCase() == widget.initialCountry.trim().toLowerCase() ||
+                          country.name.toLowerCase() == widget.initialCountry.trim().toLowerCase();
+                      return ListTile(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                        leading: Text(country.flag, style: const TextStyle(fontSize: 28)),
+                        title: Text(
+                          country.displayName,
+                          style: TextStyle(
+                            color: isSelected ? _ProfileColors.gold : Colors.white,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            fontSize: 16,
+                          ),
+                        ),
+                        subtitle: Text(
+                          country.frenchName.isNotEmpty && country.frenchName != country.name
+                              ? '${country.name} · Code ${country.code}'
+                              : 'Code ${country.code}',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.4),
+                            fontSize: 12,
+                          ),
+                        ),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle, color: _ProfileColors.gold)
+                            : null,
+                        onTap: () {
+                          widget.onSelected(country);
+                          Navigator.pop(context);
+                        },
+                      );
+                    }),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Feuille modale dynamique pour la sélection de la ville conditionnée au pays choisi (Monde entier)
+class _CityPickerSheet extends StatefulWidget {
+  final String countryName;
+  final String initialCity;
+  final ValueChanged<String> onSelected;
+
+  const _CityPickerSheet({
+    required this.countryName,
+    required this.initialCity,
+    required this.onSelected,
+  });
+
+  @override
+  State<_CityPickerSheet> createState() => _CityPickerSheetState();
+}
+
+class _CityPickerSheetState extends State<_CityPickerSheet> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  List<String> _baseCities = [];
+  List<String> _filtered = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCities();
+    _searchCtrl.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadCities() async {
+    final list = await CountriesData.getCitiesForCountry(widget.countryName);
+    if (mounted) {
+      setState(() {
+        _baseCities = list;
+        _filtered = list;
+        _isLoading = false;
+      });
+      _onSearchChanged();
+    }
+  }
+
+  void _onSearchChanged() {
+    final query = _searchCtrl.text.trim().toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        _filtered = _baseCities;
+      } else {
+        _filtered = _baseCities
+            .where((city) => city.toLowerCase().contains(query))
+            .toList();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchCtrl.text.trim();
+    final hasExactMatch = _filtered.any(
+      (c) => c.toLowerCase() == query.toLowerCase(),
+    );
+    final flag = CountriesData.getFlag(widget.countryName);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (ctx, scrollController) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF10131C),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(top: BorderSide(color: _ProfileColors.gold, width: 1.5)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_city, color: _ProfileColors.gold, size: 24),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Ville de résidence',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Text(flag, style: const TextStyle(fontSize: 14)),
+                            const SizedBox(width: 4),
+                            Text(
+                              widget.countryName,
+                              style: const TextStyle(
+                                color: _ProfileColors.gold,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (!_isLoading) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                '(${_baseCities.length} villes répertoriées)',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.4),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white60),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: TextField(
+                controller: _searchCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: _isLoading
+                      ? 'Chargement des villes...'
+                      : 'Rechercher parmi les ${_baseCities.length} villes...',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  prefixIcon: const Icon(Icons.search, color: _ProfileColors.gold),
+                  suffixIcon: query.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.white60),
+                          onPressed: () => _searchCtrl.clear(),
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: const Color(0xFF181C28),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Colors.white12),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Colors.white12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: _ProfileColors.gold),
+                  ),
+                ),
+              ),
+            ),
+            const Divider(color: Colors.white10, height: 16),
+            if (_isLoading)
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: _ProfileColors.gold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Chargement des villes de ${widget.countryName}...',
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    if (query.isNotEmpty && !hasExactMatch) ...[
+                      ListTile(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        tileColor: _ProfileColors.gold.withValues(alpha: 0.1),
+                        leading: const Icon(Icons.add_location_alt_outlined, color: _ProfileColors.gold, size: 24),
+                        title: Text(
+                          'Utiliser "$query"',
+                          style: const TextStyle(
+                            color: _ProfileColors.gold,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Valider cette ville pour ${widget.countryName}',
+                          style: const TextStyle(color: Colors.white60, fontSize: 11),
+                        ),
+                        trailing: const Icon(Icons.check, color: _ProfileColors.gold),
+                        onTap: () {
+                          widget.onSelected(query);
+                          Navigator.pop(context);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (_filtered.isEmpty && query.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            const Icon(Icons.search, size: 40, color: Colors.white24),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Aucune ville trouvée pour ${widget.countryName}. Tapez le nom de votre ville ci-dessus pour la sélectionner.',
+                              style: const TextStyle(color: Colors.white60, fontSize: 13),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      ..._filtered.map((city) {
+                        final isSelected = city.toLowerCase() == widget.initialCity.trim().toLowerCase();
+                        return ListTile(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                          leading: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? _ProfileColors.gold.withValues(alpha: 0.2)
+                                  : const Color(0xFF181C28),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isSelected ? _ProfileColors.gold : Colors.white10,
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Icon(
+                              Icons.location_on,
+                              size: 18,
+                              color: isSelected ? _ProfileColors.gold : Colors.white60,
+                            ),
+                          ),
+                          title: Text(
+                            city,
+                            style: TextStyle(
+                              color: isSelected ? _ProfileColors.gold : Colors.white,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              fontSize: 15,
+                            ),
+                          ),
+                          trailing: isSelected
+                              ? const Icon(Icons.check_circle, color: _ProfileColors.gold)
+                              : null,
+                          onTap: () {
+                            widget.onSelected(city);
+                            Navigator.pop(context);
+                          },
+                        );
+                      }),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../api/api.dart';
@@ -304,6 +305,38 @@ class AuthNotifier extends StateNotifier<AuthState> {
         onboardingCompleted: true,
       );
       state = state.copyWith(user: updated, isLoading: false);
+    } on ApiException catch (e) {
+      state = state.copyWith(isLoading: false, error: e.message);
+      rethrow;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
+    }
+  }
+
+  /// Uploader une photo de profil via UploadThing
+  Future<AuthUser> uploadProfilePicture(File imageFile) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final updated = await _authApi.uploadProfilePicture(imageFile);
+      state = state.copyWith(user: updated, isLoading: false);
+      return updated;
+    } on ApiException catch (e) {
+      state = state.copyWith(isLoading: false, error: e.message);
+      rethrow;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
+    }
+  }
+
+  /// Supprimer la photo de profil et rétablir l'avatar emoji
+  Future<AuthUser> deleteProfilePicture() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final updated = await _authApi.deleteProfilePicture();
+      state = state.copyWith(user: updated, isLoading: false);
+      return updated;
     } on ApiException catch (e) {
       state = state.copyWith(isLoading: false, error: e.message);
       rethrow;

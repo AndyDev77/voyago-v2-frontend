@@ -105,10 +105,15 @@ class TravelerDrawer extends ConsumerWidget {
                         CircleAvatar(
                           radius: 22,
                           backgroundColor: VoyagoColors.primary.withValues(alpha: 0.2),
-                          child: Text(
-                            user.avatarDisplay,
-                            style: const TextStyle(fontSize: 18),
-                          ),
+                          backgroundImage: (user.picture != null && user.picture!.isNotEmpty)
+                              ? NetworkImage(user.picture!)
+                              : null,
+                          child: (user.picture == null || user.picture!.isEmpty)
+                              ? Text(
+                                  user.avatarDisplay,
+                                  style: const TextStyle(fontSize: 18),
+                                )
+                              : null,
                         ),
                         Positioned(
                           right: -2,

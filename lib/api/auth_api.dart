@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:dio/dio.dart';
 import '../core/storage/secure_storage_service.dart';
 import '../models/auth_user.dart';
 import 'dio_client.dart';
@@ -193,6 +195,53 @@ class AuthApi {
     };
 
     final data = await _client.put(Endpoints.updateProfile, data: payload);
+    final Map<String, dynamic> userMap;
+    if (data is Map<String, dynamic>) {
+      userMap = (data['user'] is Map<String, dynamic>)
+          ? (data['user'] as Map<String, dynamic>)
+          : data;
+    } else {
+      userMap = <String, dynamic>{};
+    }
+
+    final updatedUser = AuthUser.fromJson(userMap);
+    await _storage.setAuthUser(updatedUser);
+    return updatedUser;
+  }
+
+  /// Uploader une photo de profil via UploadThing
+  Future<AuthUser> uploadProfilePicture(File imageFile) async {
+    final fileName = imageFile.path.split(Platform.pathSeparator).last;
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(
+        imageFile.path,
+        filename: fileName,
+      ),
+    });
+
+    final data = await _client.post(
+      Endpoints.uploadProfilePicture,
+      data: formData,
+      options: Options(contentType: 'multipart/form-data'),
+    );
+
+    final Map<String, dynamic> userMap;
+    if (data is Map<String, dynamic>) {
+      userMap = (data['user'] is Map<String, dynamic>)
+          ? (data['user'] as Map<String, dynamic>)
+          : data;
+    } else {
+      userMap = <String, dynamic>{};
+    }
+
+    final updatedUser = AuthUser.fromJson(userMap);
+    await _storage.setAuthUser(updatedUser);
+    return updatedUser;
+  }
+
+  /// Supprimer la photo de profil (UploadThing + BD) et revenir à l'avatar emoji
+  Future<AuthUser> deleteProfilePicture() async {
+    final data = await _client.delete(Endpoints.uploadProfilePicture);
     final Map<String, dynamic> userMap;
     if (data is Map<String, dynamic>) {
       userMap = (data['user'] is Map<String, dynamic>)

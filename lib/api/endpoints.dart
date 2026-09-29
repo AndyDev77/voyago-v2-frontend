@@ -45,6 +45,9 @@ class Endpoints {
   static const String authOptions = '/api/auth/options';
   static const String updateProfile = '/api/auth/me';
 
+  // --- UPLOAD MODULE ---
+  static const String uploadProfilePicture = '/api/upload/profile-picture';
+
   // --- TRIPS MODULE ---
   static const String generateTrip = '/api/trips/generate';
   static String userTrips(String userId) => '/api/trips/$userId';
