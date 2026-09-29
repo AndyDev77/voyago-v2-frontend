@@ -12,8 +12,9 @@ class WelcomeScreen extends ConsumerStatefulWidget {
   ConsumerState<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
-class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
-  late VideoPlayerController _videoController;
+class _WelcomeScreenState extends ConsumerState<WelcomeScreen>
+    with WidgetsBindingObserver {
+  VideoPlayerController? _videoController;
   bool _isVideoInitialized = false;
   final PageController _pageController = PageController();
   int _currentPage = 0;
@@ -66,18 +67,30 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeVideo();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_videoController == null || !_videoController!.value.isInitialized) return;
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _videoController?.pause();
+    } else if (state == AppLifecycleState.resumed) {
+      _videoController?.play();
+    }
   }
 
   Future<void> _initializeVideo() async {
     try {
-      _videoController = VideoPlayerController.asset(
+      final controller = VideoPlayerController.asset(
         'assets/medias/media_logo_voyago_2.mp4',
       );
-      await _videoController.initialize();
-      _videoController.setLooping(true);
-      _videoController.setVolume(0.0);
-      await _videoController.play();
+      _videoController = controller;
+      await controller.initialize();
+      controller.setLooping(true);
+      controller.setVolume(0.0);
+      await controller.play();
       if (mounted) {
         setState(() {
           _isVideoInitialized = true;
@@ -90,7 +103,9 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
 
   @override
   void dispose() {
-    _videoController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _videoController?.pause();
+    _videoController?.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -107,6 +122,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   }
 
   void _onStart() {
+    _videoController?.pause();
     final authState = ref.read(authProvider);
     if (authState.user != null) {
       context.go('/');
@@ -194,19 +210,21 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   Widget _buildVideoBackground() {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 600),
-      child: _isVideoInitialized && _videoController.value.isInitialized
+      child: _isVideoInitialized &&
+              _videoController != null &&
+              _videoController!.value.isInitialized
           ? SizedBox.expand(
               key: const ValueKey('video_ready'),
               child: FittedBox(
                 fit: BoxFit.cover,
                 child: SizedBox(
-                  width: _videoController.value.size.width > 0
-                      ? _videoController.value.size.width
+                  width: _videoController!.value.size.width > 0
+                      ? _videoController!.value.size.width
                       : 1080,
-                  height: _videoController.value.size.height > 0
-                      ? _videoController.value.size.height
+                  height: _videoController!.value.size.height > 0
+                      ? _videoController!.value.size.height
                       : 1920,
-                  child: VideoPlayer(_videoController),
+                  child: VideoPlayer(_videoController!),
                 ),
               ),
             )

@@ -47,12 +47,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/'),
         ),
-        title: const Row(
+        title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('🦜', style: TextStyle(fontSize: 20)),
-            SizedBox(width: 8),
-            Text('Voyago'),
+            Image.asset(
+              'assets/logo/voyago_parrot.png',
+              height: 28,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Text('🦜', style: TextStyle(fontSize: 20)),
+            ),
+            const SizedBox(width: 8),
+            const Text('Voyago'),
           ],
         ),
         bottom: TabBar(

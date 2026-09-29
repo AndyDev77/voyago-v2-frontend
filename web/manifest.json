@@ -1,11 +1,11 @@
 {
-    "name": "voyago",
-    "short_name": "voyago",
+    "name": "Voyago — Planificateur de voyage IA",
+    "short_name": "Voyago",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFFFFF",
+    "theme_color": "#1A1A2E",
+    "description": "Voyago — Planificateur de voyage personnalisé propulsé par l'IA",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

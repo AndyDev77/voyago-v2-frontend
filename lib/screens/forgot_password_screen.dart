@@ -115,12 +115,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 16),
-            const Text(
-              '🔐',
-              style: TextStyle(fontSize: 48),
-              textAlign: TextAlign.center,
+            Center(
+              child: Image.asset(
+                'assets/logo/voyago_parrot.png',
+                height: 64,
+                fit: BoxFit.contain,
+              ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             Text(
               _step == 1 ? 'Réinitialiser votre mot de passe' : 'Entrez votre code',
               style: const TextStyle(
