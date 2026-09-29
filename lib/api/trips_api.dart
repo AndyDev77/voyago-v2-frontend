@@ -15,6 +15,11 @@ class TripsApi {
     required List<String> transports,
     required String budget,
     required List<String> interests,
+    String? startDate,
+    String? endDate,
+    String? city,
+    String? country,
+    String? countryCode,
     String? tenantId,
   }) async {
     final payload = {
@@ -24,6 +29,11 @@ class TripsApi {
       'transports': transports,
       'budget': budget,
       'interests': interests,
+      if (startDate != null && startDate.isNotEmpty) 'start_date': startDate,
+      if (endDate != null && endDate.isNotEmpty) 'end_date': endDate,
+      if (city != null && city.isNotEmpty) 'city': city,
+      if (country != null && country.isNotEmpty) 'country': country,
+      if (countryCode != null && countryCode.isNotEmpty) 'country_code': countryCode,
       if (tenantId != null) 'tenant_id': tenantId,
     };
 

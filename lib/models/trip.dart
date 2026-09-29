@@ -12,6 +12,11 @@ class Trip {
   final List<String> interests;
   final List<POI> pois;
   final List<DayWeather> weather;
+  final String? city;
+  final String? country;
+  final String? countryCode;
+  final String? startDate;
+  final String? endDate;
   final bool isPublic;
   final int likes;
   final DateTime createdAt;
@@ -27,6 +32,11 @@ class Trip {
     required this.interests,
     required this.pois,
     required this.weather,
+    this.city,
+    this.country,
+    this.countryCode,
+    this.startDate,
+    this.endDate,
     required this.isPublic,
     required this.likes,
     required this.createdAt,
@@ -62,6 +72,11 @@ class Trip {
       userId:
           json['user_id']?.toString() ?? json['userId']?.toString() ?? '',
       destination: json['destination']?.toString() ?? '',
+      city: json['city']?.toString(),
+      country: json['country']?.toString(),
+      countryCode: json['country_code']?.toString() ?? json['countryCode']?.toString(),
+      startDate: json['start_date']?.toString() ?? json['startDate']?.toString(),
+      endDate: json['end_date']?.toString() ?? json['endDate']?.toString(),
       pace: json['pace']?.toString() ?? '',
       budget: json['budget']?.toString() ?? '',
       durationDays: (json['duration_days'] as num?)?.toInt() ??
@@ -86,6 +101,11 @@ class Trip {
       'id': id,
       'user_id': userId,
       'destination': destination,
+      if (city != null) 'city': city,
+      if (country != null) 'country': country,
+      if (countryCode != null) 'country_code': countryCode,
+      if (startDate != null) 'start_date': startDate,
+      if (endDate != null) 'end_date': endDate,
       'pace': pace,
       'budget': budget,
       'duration_days': durationDays,

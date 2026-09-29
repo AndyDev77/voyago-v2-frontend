@@ -62,6 +62,11 @@ class TripGeneratorNotifier extends StateNotifier<TripGeneratorState> {
     required List<String> transports,
     required String budget,
     required List<String> interests,
+    String? startDate,
+    String? endDate,
+    String? city,
+    String? country,
+    String? countryCode,
     String? userId,
   }) async {
     state = const TripGeneratorState(
@@ -77,6 +82,11 @@ class TripGeneratorNotifier extends StateNotifier<TripGeneratorState> {
         transports: transports,
         budget: budget,
         interests: interests,
+        startDate: startDate,
+        endDate: endDate,
+        city: city,
+        country: country,
+        countryCode: countryCode,
       );
 
       state = TripGeneratorState(

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../models/trip.dart';
 import '../providers/community_provider.dart';
 import '../theme.dart';
 import '../widgets/trip_card.dart';
