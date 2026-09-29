@@ -15,13 +15,53 @@ class WelcomeScreen extends ConsumerStatefulWidget {
 class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   late VideoPlayerController _videoController;
   bool _isVideoInitialized = false;
-  final ScrollController _scrollController = ScrollController();
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
 
   static const Color primaryCyan = Color(0xFF0DF2CC);
   static const Color darkBackground = Color(0xFF10221F);
   static const Color cardDark = Color(0xFF1B2725);
   static const Color cardBorder = Color(0xFF3B5450);
   static const Color textMuted = Color(0xFF9CBAB5);
+
+  final List<_WelcomeSlideData> _slides = const [
+    _WelcomeSlideData(
+      tag: 'INTELLIGENCE ARTIFICIELLE',
+      icon: Icons.auto_awesome_rounded,
+      title: 'Itinéraires IA\nSur-Mesure',
+      subtitle:
+          'Notre IA experte conçoit votre voyage complet en quelques secondes selon vos goûts, votre rythme et votre budget.',
+      features: [
+        'Plans personnalisés jour par jour',
+        'Coordonnées GPS & vrais lieux',
+        'Génération ultra-rapide',
+      ],
+    ),
+    _WelcomeSlideData(
+      tag: 'CONFORT & TEMPS RÉEL',
+      icon: Icons.wb_sunny_rounded,
+      title: 'Adaptation Météo &\nSensibilité Thermique',
+      subtitle:
+          'Vos étapes s\'ajustent automatiquement selon les prévisions météo et votre profil thermique (frileux ou sensible à la chaleur).',
+      features: [
+        'Météo locale en direct sur 16 jours',
+        'Conseils vestimentaires d\'initiés',
+        'Lieux abrités ou climatisés adaptés',
+      ],
+    ),
+    _WelcomeSlideData(
+      tag: 'GAMIFICATION & XP',
+      icon: Icons.emoji_events_rounded,
+      title: 'Voyagez, Jouez et\nDébloquez des Badges',
+      subtitle:
+          'Swipez vos envies, accumulez de l\'XP à chaque découverte, progressez dans les niveaux et partagez vos exploits.',
+      features: [
+        'Swipe interactif pour choisir vos envies',
+        'Points d\'XP & niveaux d\'explorateur',
+        'Badges exclusifs à collectionner',
+      ],
+    ),
+  ];
 
   @override
   void initState() {
@@ -36,7 +76,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       );
       await _videoController.initialize();
       _videoController.setLooping(true);
-      _videoController.setVolume(0.0); // Vidéo en fond muet
+      _videoController.setVolume(0.0);
       await _videoController.play();
       if (mounted) {
         setState(() {
@@ -51,14 +91,34 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   @override
   void dispose() {
     _videoController.dispose();
-    _scrollController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
-  void _scrollToFeatures() {
-    _scrollController.animateTo(
-      650,
-      duration: const Duration(milliseconds: 600),
+  void _onNext() {
+    if (_currentPage < _slides.length - 1) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOutCubic,
+      );
+    } else {
+      _onStart();
+    }
+  }
+
+  void _onStart() {
+    final authState = ref.read(authProvider);
+    if (authState.user != null) {
+      context.go('/');
+    } else {
+      context.go('/swipe');
+    }
+  }
+
+  void _onSkip() {
+    _pageController.animateToPage(
+      _slides.length - 1,
+      duration: const Duration(milliseconds: 400),
       curve: Curves.easeInOutCubic,
     );
   }
@@ -67,17 +127,18 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
+    final isLastSlide = _currentPage == _slides.length - 1;
 
     return Scaffold(
       backgroundColor: darkBackground,
       body: Stack(
         children: [
-          // 1. Fond Vidéo avec dégradé cinématique
+          // 1. Fond Vidéo cinématique en boucle
           Positioned.fill(
             child: _buildVideoBackground(),
           ),
 
-          // 2. Dégradé sombre pour lisibilité optimale
+          // 2. Filtre sombre et dégradé pour contraste parfait
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
@@ -85,57 +146,42 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.65),
-                    Colors.black.withValues(alpha: 0.40),
-                    darkBackground.withValues(alpha: 0.90),
-                    darkBackground,
+                    Colors.black.withValues(alpha: 0.70),
+                    Colors.black.withValues(alpha: 0.45),
+                    darkBackground.withValues(alpha: 0.88),
+                    darkBackground.withValues(alpha: 0.98),
                   ],
-                  stops: const [0.0, 0.4, 0.75, 1.0],
+                  stops: const [0.0, 0.35, 0.70, 1.0],
                 ),
               ),
             ),
           ),
 
-          // 3. Contenu principal défilable
+          // 3. Contenu au premier plan (Header + Carrousel 3 slides + Controls)
           SafeArea(
             child: Column(
               children: [
                 // En-tête simplifié sans menus superflus
-                _buildHeader(context, user != null),
+                _buildHeader(context, user != null, isLastSlide),
 
-                // Corps défilable
+                // Carrousel de 3 slides explicatifs
                 Expanded(
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    physics: const BouncingScrollPhysics(),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(height: 24),
-
-                        // Section Héro
-                        _buildHeroSection(context, user != null),
-
-                        const SizedBox(height: 56),
-
-                        // Section Fonctionnalités Intelligentes
-                        _buildFeaturesSection(context),
-
-                        const SizedBox(height: 48),
-
-                        // Section Appel à l'action (CTA)
-                        _buildCtaSection(context, user != null),
-
-                        const SizedBox(height: 40),
-
-                        // Pied de page synthétique
-                        _buildFooter(),
-
-                        const SizedBox(height: 24),
-                      ],
-                    ),
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemCount: _slides.length,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentPage = index;
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      return _buildSlide(_slides[index]);
+                    },
                   ),
                 ),
+
+                // Indicateurs et Boutons d'action en bas
+                _buildBottomControls(isLastSlide, user != null),
               ],
             ),
           ),
@@ -144,10 +190,10 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     );
   }
 
-  /// Fond vidéo avec animation de transition et solution de repli esthétique
+  /// Fond vidéo fluide avec fallback dégradé
   Widget _buildVideoBackground() {
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 600),
       child: _isVideoInitialized && _videoController.value.isInitialized
           ? SizedBox.expand(
               key: const ValueKey('video_ready'),
@@ -180,125 +226,106 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     );
   }
 
-  /// En-tête sans les menus de navigation traditionnels
-  Widget _buildHeader(BuildContext context, bool isLoggedIn) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(
-        color: darkBackground.withValues(alpha: 0.75),
-        border: Border(
-          bottom: BorderSide(
-            color: const Color(0xFF283936).withValues(alpha: 0.6),
-            width: 1,
-          ),
-        ),
-      ),
+  /// En-tête minimaliste avec logo officiel et action Passer / Connexion
+  Widget _buildHeader(BuildContext context, bool isLoggedIn, bool isLastSlide) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Logo officiel et nom
-          InkWell(
-            onTap: () {
-              if (_scrollController.hasClients) {
-                _scrollController.animateTo(
-                  0,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeOut,
-                );
-              }
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
-                    'assets/logo/voyago_parrot.png',
+          // Logo & Titre
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset(
+                  'assets/logo/voyago_parrot.png',
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Container(
                     width: 36,
                     height: 36,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: primaryCyan.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Center(
-                        child: Icon(Icons.flight_takeoff_rounded, color: primaryCyan, size: 22),
-                      ),
+                    decoration: BoxDecoration(
+                      color: primaryCyan.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.flight_takeoff_rounded, color: primaryCyan, size: 20),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Text(
-                  'Voyago',
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.5,
-                    color: Colors.white,
-                  ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Voyago',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: -0.5,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
 
-          // Bouton d'action directe (Connexion ou Espace Voyageur)
-          if (!isLoggedIn)
-            OutlinedButton(
-              onPressed: () => context.go('/auth'),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: primaryCyan, width: 1.5),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+          // Action en haut à droite
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!isLastSlide)
+                TextButton(
+                  onPressed: _onSkip,
+                  style: TextButton.styleFrom(
+                    foregroundColor: textMuted,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  child: Text(
+                    'Passer',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: textMuted,
+                    ),
+                  ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                minimumSize: const Size(84, 38),
-              ),
-              child: Text(
-                'Connexion',
-                style: GoogleFonts.spaceGrotesk(
-                  color: primaryCyan,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+              if (!isLoggedIn)
+                TextButton(
+                  onPressed: () => context.go('/auth'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: primaryCyan,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  ),
+                  child: Text(
+                    'Connexion',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: primaryCyan,
+                    ),
+                  ),
                 ),
-              ),
-            )
-          else
-            ElevatedButton.icon(
-              onPressed: () => context.go('/'),
-              icon: const Icon(Icons.dashboard_rounded, size: 16, color: darkBackground),
-              label: Text(
-                'Mon Espace',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: darkBackground,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryCyan,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                minimumSize: const Size(90, 38),
-              ),
-            ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  /// Section Héro avec typographie percutante et boutons d'action
-  Widget _buildHeroSection(BuildContext context, bool isLoggedIn) {
+  /// Construction d'un slide du carrousel
+  Widget _buildSlide(_WelcomeSlideData data) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Tag d'accroche IA
+          const Spacer(),
+
+          // Badge thématique
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
@@ -312,10 +339,10 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.auto_awesome_rounded, color: primaryCyan, size: 16),
+                Icon(data.icon, color: primaryCyan, size: 14),
                 const SizedBox(width: 8),
                 Text(
-                  'COMPAGNON DE VOYAGE INTELLIGENT',
+                  data.tag,
                   style: GoogleFonts.spaceGrotesk(
                     color: primaryCyan,
                     fontSize: 11,
@@ -327,372 +354,192 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
-          // Titre principal
-          RichText(
-            textAlign: TextAlign.center,
-            text: TextSpan(
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 38,
-                fontWeight: FontWeight.w800,
-                height: 1.15,
-                color: Colors.white,
-                letterSpacing: -1.0,
+          // Icône centrale dans un conteneur verre néon
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: cardDark.withValues(alpha: 0.9),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: primaryCyan.withValues(alpha: 0.5),
+                width: 2,
               ),
-              children: [
-                const TextSpan(text: 'Voyagez Plus Malin,\n'),
-                WidgetSpan(
-                  child: ShaderMask(
-                    shaderCallback: (bounds) => const LinearGradient(
-                      colors: [primaryCyan, Color(0xFF2DD4BF)],
-                    ).createShader(bounds),
-                    child: Text(
-                      'Explorez Sans Limite.',
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 38,
-                        fontWeight: FontWeight.w800,
-                        height: 1.15,
-                        color: Colors.white,
-                        letterSpacing: -1.0,
-                      ),
-                    ),
-                  ),
+              boxShadow: [
+                BoxShadow(
+                  color: primaryCyan.withValues(alpha: 0.25),
+                  blurRadius: 24,
+                  spreadRadius: 2,
                 ),
               ],
             ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Sous-titre synthétique
-          Text(
-            'Votre guide IA pour révéler les pépites secrètes, ajuster vos trajets selon la météo et transformer chaque escapade en aventure gamifiée.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 15,
-              fontWeight: FontWeight.w400,
-              color: const Color(0xFFD1E3DF),
-              height: 1.5,
+            child: Center(
+              child: Icon(data.icon, color: primaryCyan, size: 40),
             ),
           ),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
 
-          // Boutons d'action principaux
-          Column(
-            children: [
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (isLoggedIn) {
-                      context.go('/swipe');
-                    } else {
-                      context.go('/swipe');
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryCyan,
-                    foregroundColor: darkBackground,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    shadowColor: primaryCyan.withValues(alpha: 0.4),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Commencer l\'Aventure',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: darkBackground,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.arrow_forward_rounded, size: 20, color: darkBackground),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: _scrollToFeatures,
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: Colors.white.withValues(alpha: 0.08),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      side: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.15),
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Découvrir les fonctionnalités',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: Colors.white70),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Section des 3 fonctionnalités majeures synthétisées
-  Widget _buildFeaturesSection(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Titre de section
+          // Titre principal du slide
           Text(
-            'Fonctionnalités Intelligentes',
+            data.title,
+            textAlign: TextAlign.center,
             style: GoogleFonts.spaceGrotesk(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+              height: 1.2,
               color: Colors.white,
               letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 6),
+
+          const SizedBox(height: 14),
+
+          // Sous-titre explicatif synthétique
           Text(
-            'Conçu pour s\'adapter dynamiquement à vos envies et aux conditions du monde réel.',
+            data.subtitle,
+            textAlign: TextAlign.center,
             style: GoogleFonts.spaceGrotesk(
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: FontWeight.w400,
-              color: textMuted,
+              color: const Color(0xFFD1E3DF),
+              height: 1.45,
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 26),
 
-          // 1. Itinéraires IA
-          _buildFeatureCard(
-            icon: Icons.psychology_rounded,
-            title: 'Itinéraires IA Sur-Mesure',
-            description:
-                'Plans générés en quelques secondes selon votre style, votre budget et le rythme souhaité.',
-            badgeText: 'Instant & Personnalisé',
-          ),
-
-          const SizedBox(height: 14),
-
-          // 2. Météo & Confort thermique
-          _buildFeatureCard(
-            icon: Icons.thunderstorm_rounded,
-            title: 'Adaptation Météo en Direct',
-            description:
-                'Ajustement instantané des activités en cas de pluie, canicule ou selon votre sensibilité thermique.',
-            badgeText: 'Temps Réel & Thermosensible',
-          ),
-
-          const SizedBox(height: 14),
-
-          // 3. Exploration Gamifiée
-          _buildFeatureCard(
-            icon: Icons.sports_esports_rounded,
-            title: 'Exploration Gamifiée',
-            description:
-                'Gagnez des points d\'XP, progressez dans les niveaux et débloquez des badges exclusifs en voyageant.',
-            badgeText: 'XP & Badges Uniques',
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Carte de fonctionnalité unifiée avec esthétique dark moderne
-  Widget _buildFeatureCard({
-    required IconData icon,
-    required String title,
-    required String description,
-    required String badgeText,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: cardDark,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cardBorder, width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: primaryCyan.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: primaryCyan.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Center(
-                  child: Icon(icon, color: primaryCyan, size: 24),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: primaryCyan.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        badgeText,
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: primaryCyan,
+          // Liste des 3 points clés dans une carte semi-transparente
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            decoration: BoxDecoration(
+              color: cardDark.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: cardBorder, width: 1),
+            ),
+            child: Column(
+              children: data.features.map((feat) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: primaryCyan.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.check_rounded, color: primaryCyan, size: 12),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            description,
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-              color: textMuted,
-              height: 1.4,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          feat,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
             ),
           ),
+
+          const Spacer(),
         ],
       ),
     );
   }
 
-  /// Section d'appel à l'action finale (CTA)
-  Widget _buildCtaSection(BuildContext context, bool isLoggedIn) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
-      decoration: BoxDecoration(
-        color: const Color(0xFF142C28),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: primaryCyan.withValues(alpha: 0.4),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: primaryCyan.withValues(alpha: 0.15),
-            blurRadius: 24,
-            spreadRadius: -4,
-          ),
-        ],
-      ),
+  /// Contrôles du bas : Indicateurs de page + Bouton Suivant / Commencer
+  Widget _buildBottomControls(bool isLastSlide, bool isLoggedIn) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: primaryCyan.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.explore_rounded,
-              color: primaryCyan,
-              size: 28,
-            ),
+          // 1. Indicateurs de page (Pills animés)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(_slides.length, (index) {
+              final isActive = index == _currentPage;
+              return GestureDetector(
+                onTap: () {
+                  _pageController.animateToPage(
+                    index,
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeInOut,
+                  );
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  height: 6,
+                  width: isActive ? 30 : 8,
+                  decoration: BoxDecoration(
+                    color: isActive ? primaryCyan : const Color(0xFF3B5450),
+                    borderRadius: BorderRadius.circular(3),
+                    boxShadow: isActive
+                        ? [
+                            BoxShadow(
+                              color: primaryCyan.withValues(alpha: 0.6),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : null,
+                  ),
+                ),
+              );
+            }),
           ),
-          const SizedBox(height: 14),
-          Text(
-            'Prêt à voyager autrement ?',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 21,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Rejoignez la communauté Voyago et commencez à explorer le monde à votre manière dès maintenant.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 13,
-              color: textMuted,
-              height: 1.4,
-            ),
-          ),
+
           const SizedBox(height: 20),
+
+          // 2. Bouton d'action principal
           SizedBox(
             width: double.infinity,
+            height: 54,
             child: ElevatedButton(
-              onPressed: () {
-                if (isLoggedIn) {
-                  context.go('/swipe');
-                } else {
-                  context.go('/auth');
-                }
-              },
+              onPressed: isLastSlide ? _onStart : _onNext,
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryCyan,
                 foregroundColor: darkBackground,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
+                shadowColor: primaryCyan.withValues(alpha: 0.5),
               ),
-              child: Text(
-                isLoggedIn ? 'Créer mon itinéraire' : 'Créer un compte gratuit',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: darkBackground,
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    isLastSlide
+                        ? (isLoggedIn ? 'Accéder à mon espace' : 'Commencer')
+                        : 'Suivant',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: darkBackground,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    isLastSlide ? Icons.rocket_launch_rounded : Icons.arrow_forward_rounded,
+                    size: 20,
+                    color: darkBackground,
+                  ),
+                ],
               ),
             ),
           ),
@@ -700,49 +547,20 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       ),
     );
   }
+}
 
-  /// Pied de page
-  Widget _buildFooter() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        children: [
-          Divider(color: const Color(0xFF283936).withValues(alpha: 0.6), height: 1),
-          const SizedBox(height: 18),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Image.asset(
-                'assets/logo/voyago_parrot.png',
-                width: 20,
-                height: 20,
-                errorBuilder: (_, __, ___) => const Icon(
-                  Icons.flight_takeoff_rounded,
-                  color: primaryCyan,
-                  size: 16,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Voyago • Smart Travel Companion',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: textMuted,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '© 2026 Voyago. Tous droits réservés.',
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 11,
-              color: const Color(0xFF5A706B),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+class _WelcomeSlideData {
+  final String tag;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final List<String> features;
+
+  const _WelcomeSlideData({
+    required this.tag,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.features,
+  });
 }

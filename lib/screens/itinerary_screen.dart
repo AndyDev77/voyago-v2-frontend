@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_animations/flutter_map_animations.dart';
+import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:go_router/go_router.dart';
 import '../models/trip.dart';
@@ -31,7 +33,7 @@ class ItineraryScreen extends ConsumerStatefulWidget {
 class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
     with TickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final MapController _mapController = MapController();
+  late final AnimatedMapController _animatedMapController;
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
 
@@ -43,12 +45,18 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
   List<CityLocation> _searchResults = [];
   bool _isSearching = false;
   bool _showWeatherCard = true;
+  bool _forceDayMap = false;
   LatLng? _currentCenter;
   Timer? _ambianceRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+    _animatedMapController = AnimatedMapController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOutCubic,
+    );
     if (widget.trip != null) {
       _currentTrip = widget.trip;
       _activeCityName = widget.trip!.destination;
@@ -105,7 +113,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
   @override
   void dispose() {
     _ambianceRefreshTimer?.cancel();
-    _mapController.dispose();
+    _animatedMapController.dispose();
     _searchCtrl.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -140,7 +148,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
     });
 
     // Move map to city coordinates
-    _mapController.move(target, 13.5);
+    _animatedMapController.animateTo(dest: target, zoom: 13.5);
 
     // Fetch dynamic live weather
     final weatherList = await LiveWeatherService.instance.fetchWeather(city.lat, city.lng);
@@ -335,7 +343,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
           if (pois.isNotEmpty) {
             final target = LatLng(pois.first.lat, pois.first.lng);
             setState(() => _currentCenter = target);
-            _mapController.move(target, 13.5);
+            _animatedMapController.animateTo(dest: target, zoom: 13.5);
           }
         },
       ),
@@ -344,7 +352,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
           // === 1. FULL-SCREEN LEAFLET MAP (DYNAMIQUE JOUR / NUIT 100% GRATUIT) ===
           Positioned.fill(
             child: FlutterMap(
-              mapController: _mapController,
+              mapController: _animatedMapController.mapController,
               options: MapOptions(
                 initialCenter: center,
                 initialZoom: 13.5,
@@ -360,14 +368,14 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                 },
               ),
               children: [
-                // Tuiles dynamiques Jour / Nuit 100% gratuites sans API Key (OpenStreetMap / ArcGIS)
+                // Tuiles OpenStreetMap 100% gratuites sans API Key ni filigrane (haute définition, rues, édifices)
                 TileLayer(
-                  key: ValueKey('${ambiance.phase}_${ambiance.tileUrlTemplate}'),
+                  key: ValueKey('${ambiance.phase}_${ambiance.tileUrlTemplate}_$_forceDayMap'),
                   urlTemplate: ambiance.tileUrlTemplate,
                   userAgentPackageName: 'com.voyago.app',
                   maxNativeZoom: 19,
                   panBuffer: 1,
-                  tileBuilder: ambiance.tileColorFilter == null
+                  tileBuilder: (_forceDayMap || ambiance.tileColorFilter == null)
                       ? null
                       : (context, tileWidget, tile) => ColorFiltered(
                           colorFilter: ambiance.tileColorFilter!,
@@ -415,14 +423,30 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                             _activePoiIndex =
                                 _activePoiIndex == i ? null : i;
                           });
-                          _mapController.move(
-                            LatLng(poi.lat, poi.lng),
-                            15,
+                          _animatedMapController.animateTo(
+                            dest: LatLng(poi.lat, poi.lng),
+                            zoom: 15,
                           );
                         },
                       ),
                     );
                   }).toList(),
+                ),
+
+                // === POSITION GPS EN TEMPS RÉEL DE L'UTILISATEUR ===
+                CurrentLocationLayer(
+                  alignPositionOnUpdate: AlignOnUpdate.never,
+                  alignDirectionOnUpdate: AlignOnUpdate.never,
+                  style: LocationMarkerStyle(
+                    marker: const DefaultLocationMarker(
+                      color: VoyagoColors.primary,
+                      child: Icon(Icons.navigation_rounded, color: Colors.white, size: 14),
+                    ),
+                    markerSize: const Size.square(32),
+                    accuracyCircleColor: VoyagoColors.primary.withValues(alpha: 0.12),
+                    headingSectorColor: VoyagoColors.primary.withValues(alpha: 0.5),
+                    headingSectorRadius: 60,
+                  ),
                 ),
               ],
             ),
@@ -677,16 +701,37 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
             bottom: MediaQuery.of(context).size.height * 0.46 + 12,
             child: Column(
               children: [
+                // Bascule Style Carte : Plein Jour (100% rues/édifices clairs) ou Ambiance Réelle (100% gratuit sans filigrane)
+                _MapButton(
+                  icon: _forceDayMap ? Icons.wb_sunny_rounded : Icons.dark_mode_rounded,
+                  onTap: () {
+                    setState(() => _forceDayMap = !_forceDayMap);
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          _forceDayMap
+                              ? '☀️ Mode Plein Jour activé (rues et édifices en pleine lumière)'
+                              : '🌙 Mode Ambiance Solaire réactivé',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        duration: const Duration(seconds: 2),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
                 _MapButton(
                   icon: Icons.my_location,
                   onTap: () {
                     if (dayPois.isNotEmpty) {
-                      _mapController.move(
-                        LatLng(dayPois.first.lat, dayPois.first.lng),
-                        14,
+                      _animatedMapController.animateTo(
+                        dest: LatLng(dayPois.first.lat, dayPois.first.lng),
+                        zoom: 14,
                       );
                     } else {
-                      _mapController.move(center, 14);
+                      _animatedMapController.animateTo(dest: center, zoom: 14);
                     }
                   },
                 ),
@@ -708,10 +753,10 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                       _MapButton(
                         icon: Icons.add,
                         onTap: () {
-                          final zoom = _mapController.camera.zoom;
-                          _mapController.move(
-                            _mapController.camera.center,
-                            (zoom + 1).clamp(3, 18),
+                          final zoom = _animatedMapController.mapController.camera.zoom;
+                          _animatedMapController.animateTo(
+                            dest: _animatedMapController.mapController.camera.center,
+                            zoom: (zoom + 1).clamp(3, 18).toDouble(),
                           );
                         },
                         noBg: true,
@@ -724,10 +769,10 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                       _MapButton(
                         icon: Icons.remove,
                         onTap: () {
-                          final zoom = _mapController.camera.zoom;
-                          _mapController.move(
-                            _mapController.camera.center,
-                            (zoom - 1).clamp(3, 18),
+                          final zoom = _animatedMapController.mapController.camera.zoom;
+                          _animatedMapController.animateTo(
+                            dest: _animatedMapController.mapController.camera.center,
+                            zoom: (zoom - 1).clamp(3, 18).toDouble(),
                           );
                         },
                         noBg: true,
@@ -754,13 +799,13 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
               if (newPois.isNotEmpty) {
                 final target = LatLng(newPois.first.lat, newPois.first.lng);
                 setState(() => _currentCenter = target);
-                _mapController.move(target, 13.5);
+                _animatedMapController.animateTo(dest: target, zoom: 13.5);
               }
             },
             onPoiTap: (poi) {
               final idx = dayPois.indexOf(poi);
               setState(() => _activePoiIndex = idx >= 0 ? idx : null);
-              _mapController.move(LatLng(poi.lat, poi.lng), 15);
+              _animatedMapController.animateTo(dest: LatLng(poi.lat, poi.lng), zoom: 15);
             },
           ),
         ],

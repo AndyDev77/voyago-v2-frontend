@@ -29,6 +29,30 @@ class MapAmbiance {
   final bool showMoon;
   final bool showClouds;
 
+  final ColorFilter? customTileFilter;
+
+  /// URL OpenStreetMap 100% gratuite, sans aucune clé d'API, sans watermark
+  static const String osmTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  static const String osmAttribution = '© OpenStreetMap contributors';
+
+  /// Filtre sombre haute fidélité pour OpenStreetMap :
+  /// Transforme les tuiles claires OSM en une somptueuse carte de nuit (fond sombre ardoise #101E22,
+  /// rues et libellés néon/cyan ultra nets, 100% gratuit sans aucune clé API ni filigrane).
+  static const ColorFilter nightMatrixFilter = ColorFilter.matrix(<double>[
+    -0.80,  0.00,  0.00, 0.0, 215.0,
+     0.00, -0.74,  0.00, 0.0, 222.0,
+     0.00,  0.00, -0.68, 0.0, 230.0,
+     0.00,  0.00,  0.00, 1.0,   0.0,
+  ]);
+
+  /// Filtre crépuscule bleuté pour OpenStreetMap
+  static const ColorFilter twilightMatrixFilter = ColorFilter.matrix(<double>[
+    -0.60,  0.00,  0.00, 0.0, 185.0,
+     0.00, -0.55,  0.00, 0.0, 195.0,
+     0.00,  0.00, -0.42, 0.0, 215.0,
+     0.00,  0.00,  0.00, 1.0,   0.0,
+  ]);
+
   const MapAmbiance({
     required this.phase,
     required this.tileUrlTemplate,
@@ -38,6 +62,7 @@ class MapAmbiance {
     required this.isNight,
     required this.localHour,
     required this.localMinute,
+    this.customTileFilter,
     this.tileWarmth = 0,
     this.ambientOverlay = 0,
     this.ambientColor = Colors.transparent,
@@ -49,8 +74,9 @@ class MapAmbiance {
     this.showClouds = false,
   });
 
-  /// Teinte chaude appliquée aux tuiles (comme dans hellobarber_frontend lors de la golden hour)
+  /// Filtre appliqué aux tuiles de la carte (chaleur dorée ou mode nuit sombre haute définition)
   ColorFilter? get tileColorFilter {
+    if (customTileFilter != null) return customTileFilter;
     if (tileWarmth <= 0) return null;
     return ColorFilter.mode(
       Color.lerp(
@@ -165,23 +191,24 @@ class MapAmbiance {
       case MapAmbiancePhase.day:
         return MapAmbiance(
           phase: phase,
-          // OpenStreetMap : 100% gratuit, clair et précis, sans clé d'API
-          tileUrlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          attribution: '© OpenStreetMap contributors',
+          // OpenStreetMap standard : 100% gratuit, sans clé d'API, rues, édifices, boulevards en pleine clarté
+          tileUrlTemplate: osmTileUrl,
+          attribution: osmAttribution,
           phaseLabel: 'Jour ensoleillé · $timeStr',
           phaseIcon: Icons.wb_sunny_rounded,
           isNight: false,
           localHour: localHour,
           localMinute: localMinute,
+          customTileFilter: null,
           tileWarmth: 0.0,
           ambientOverlay: 0.0,
           ambientColor: Colors.transparent,
           skyGradient: const [
-            Color(0x334FC3F7),
-            Color(0x1A81D4FA),
+            Color(0x264FC3F7),
+            Color(0x1481D4FA),
             Color(0x00E1F5FE),
           ],
-          skyGradientOpacity: 0.35,
+          skyGradientOpacity: 0.20,
           showStars: false,
           showSun: true,
           showMoon: false,
@@ -191,22 +218,23 @@ class MapAmbiance {
       case MapAmbiancePhase.goldenHour:
         return MapAmbiance(
           phase: phase,
-          tileUrlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          attribution: '© OpenStreetMap contributors',
+          tileUrlTemplate: osmTileUrl,
+          attribution: osmAttribution,
           phaseLabel: 'Heure dorée · $timeStr',
           phaseIcon: Icons.wb_twilight_rounded,
           isNight: false,
           localHour: localHour,
           localMinute: localMinute,
-          tileWarmth: 0.45,
-          ambientOverlay: 0.08,
+          customTileFilter: null,
+          tileWarmth: 0.35,
+          ambientOverlay: 0.05,
           ambientColor: const Color(0xFFFF7043),
           skyGradient: const [
-            Color(0x4DFF7043),
-            Color(0x26FFAB40),
+            Color(0x33FF7043),
+            Color(0x1AFFAB40),
             Color(0x00FFE082),
           ],
-          skyGradientOpacity: 0.45,
+          skyGradientOpacity: 0.30,
           showStars: false,
           showSun: true,
           showMoon: false,
@@ -216,22 +244,23 @@ class MapAmbiance {
       case MapAmbiancePhase.twilight:
         return MapAmbiance(
           phase: phase,
-          tileUrlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          attribution: '© OpenStreetMap contributors',
+          tileUrlTemplate: osmTileUrl,
+          attribution: osmAttribution,
           phaseLabel: 'Crépuscule · $timeStr',
           phaseIcon: Icons.brightness_4_rounded,
           isNight: false,
           localHour: localHour,
           localMinute: localMinute,
-          tileWarmth: 0.15,
-          ambientOverlay: 0.15,
+          customTileFilter: twilightMatrixFilter,
+          tileWarmth: 0.0,
+          ambientOverlay: 0.08,
           ambientColor: const Color(0xFF283593),
           skyGradient: const [
-            Color(0x593949AB),
-            Color(0x2B7E57C2),
+            Color(0x403949AB),
+            Color(0x207E57C2),
             Color(0x00CE93D8),
           ],
-          skyGradientOpacity: 0.55,
+          skyGradientOpacity: 0.35,
           showStars: true,
           showSun: false,
           showMoon: true,
@@ -242,25 +271,25 @@ class MapAmbiance {
         final label = isStormy ? 'Ciel d\'orage · $timeStr' : 'Nuit · $timeStr';
         return MapAmbiance(
           phase: phase,
-          // ArcGIS Dark Gray Base : 100% gratuit, aucun watermark "API KEY REQUIRED"
-          tileUrlTemplate:
-              'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-          attribution: '© Esri, DeLorme, NAVTEQ',
+          // OpenStreetMap avec matrice sombre haute définition : Rues et édifices nets, 100% sans filigrane
+          tileUrlTemplate: osmTileUrl,
+          attribution: osmAttribution,
           phaseLabel: label,
           phaseIcon: isStormy ? Icons.thunderstorm : Icons.nightlight_round,
           isNight: true,
           localHour: localHour,
           localMinute: localMinute,
+          customTileFilter: nightMatrixFilter,
           tileWarmth: 0.0,
-          ambientOverlay: isStormy ? 0.22 : 0.12,
+          ambientOverlay: isStormy ? 0.12 : 0.04,
           ambientColor:
               isStormy ? const Color(0xFF1A1A2E) : const Color(0xFF050B14),
           skyGradient: const [
-            Color(0x80050B14),
-            Color(0x400D1B2A),
+            Color(0x4D050B14),
+            Color(0x260D1B2A),
             Color(0x001B263B),
           ],
-          skyGradientOpacity: 0.70,
+          skyGradientOpacity: 0.35,
           showStars: !isStormy,
           showSun: false,
           showMoon: !isStormy,
