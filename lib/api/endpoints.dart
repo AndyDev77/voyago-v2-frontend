@@ -12,8 +12,8 @@ class Endpoints {
   static const String androidEmulatorBackendUrl = 'http://10.0.2.2:3333';
   static const String localhostBackendUrl = 'http://localhost:3333';
 
-  // Passer à true si test en Wi-Fi direct sans câble USB (sans adb reverse)
-  static const bool useLanIpForDevice = false;
+  // Utiliser l'IP LAN directe (testé et validé à 100% depuis le smartphone)
+  static const bool useLanIpForDevice = true;
 
   static String get baseUrl {
     if (_envBackendUrl.isNotEmpty) {
@@ -23,11 +23,9 @@ class Endpoints {
       return localhostBackendUrl;
     }
     if (Platform.isAndroid) {
-      if (useLanIpForDevice) {
-        return localNetworkBackendUrl;
-      }
-      // Par défaut avec câble USB + `adb reverse tcp:3333 tcp:3333`
-      return localhostBackendUrl;
+      // 10.75.1.14:3333 est directement accessible par le téléphone (en Wi-Fi ou USB)
+      // sans dépendre d'une règle adb reverse qui s'efface aux reconnexions
+      return localNetworkBackendUrl;
     }
     return localhostBackendUrl;
   }

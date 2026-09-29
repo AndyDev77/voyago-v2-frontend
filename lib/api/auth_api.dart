@@ -118,7 +118,10 @@ class AuthApi {
   /// Connexion Invité (Guest)
   Future<AuthResponse> loginGuest({String? guestId}) async {
     final payload = {
-      if (guestId != null && guestId.isNotEmpty) 'guest_id': guestId,
+      if (guestId != null && guestId.isNotEmpty) ...{
+        'user_id': guestId,
+        'guest_id': guestId,
+      },
     };
 
     final data = await _client.post(Endpoints.guestLogin, data: payload);
