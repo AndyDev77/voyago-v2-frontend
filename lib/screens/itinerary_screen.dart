@@ -65,6 +65,30 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
     });
   }
 
+  @override
+  void didUpdateWidget(covariant ItineraryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.trip != null && widget.trip != oldWidget.trip) {
+      setState(() {
+        _currentTrip = widget.trip;
+        _activeCityName = widget.trip!.destination;
+        _selectedDay = 1;
+        _activePoiIndex = null;
+        _dynamicWeather = null;
+        _currentCenter = null;
+      });
+      _bootstrapLiveWeather();
+    } else if (widget.tripId.isNotEmpty && widget.tripId != oldWidget.tripId) {
+      setState(() {
+        _currentTrip = null;
+        _selectedDay = 1;
+        _activePoiIndex = null;
+        _dynamicWeather = null;
+        _currentCenter = null;
+      });
+    }
+  }
+
   Future<void> _bootstrapLiveWeather() async {
     final trip = _currentTrip;
     if (trip != null) {
@@ -147,8 +171,26 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
       return _buildScreen(_currentTrip!);
     }
 
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
+
+    // Si aucun tripId n'est fourni, charger dynamiquement le dernier voyage créé de l'utilisateur connecté
     if (widget.tripId.isEmpty) {
-      // Default demo / Paris explorer view if no tripId passed
+      if (user != null) {
+        final userTripsAsync = ref.watch(tripsProvider(user.userId));
+        return userTripsAsync.when(
+          data: (trips) {
+            if (trips.isNotEmpty) {
+              _currentTrip ??= trips.first;
+              if (_activeCityName.isEmpty) _activeCityName = trips.first.destination;
+              return _buildScreen(trips.first);
+            }
+            return _buildScreen(_createDemoTrip());
+          },
+          loading: () => _buildLoadingScreen(),
+          error: (_, __) => _buildScreen(_createDemoTrip()),
+        );
+      }
       return _buildScreen(_createDemoTrip());
     }
 
@@ -159,82 +201,90 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
         if (_activeCityName.isEmpty) _activeCityName = trip.destination;
         return _buildScreen(trip);
       },
-      loading: () => Scaffold(
-        backgroundColor: VoyagoColors.background,
-        body: Center(
+      loading: () => _buildLoadingScreen(),
+      error: (e, _) => _buildErrorScreen(e),
+    );
+  }
+
+  Widget _buildLoadingScreen() {
+    return Scaffold(
+      backgroundColor: VoyagoColors.background,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: VoyagoColors.primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  color: VoyagoColors.primary,
+                  strokeWidth: 3,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Chargement de l\'itinéraire...',
+              style: TextStyle(
+                color: VoyagoColors.muted,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorScreen(Object e) {
+    return Scaffold(
+      backgroundColor: VoyagoColors.background,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: VoyagoColors.primary.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Center(
-                  child: CircularProgressIndicator(
-                    color: VoyagoColors.primary,
-                    strokeWidth: 3,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
+              const Text('🧭', style: TextStyle(fontSize: 48)),
+              const SizedBox(height: 16),
               const Text(
-                'Chargement de l\'itinéraire...',
+                'Impossible de charger l\'itinéraire',
                 style: TextStyle(
-                  color: VoyagoColors.muted,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
+                  color: VoyagoColors.text,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                e.toString(),
+                style: const TextStyle(
+                  color: VoyagoColors.muted,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () => ref.invalidate(tripDetailProvider(widget.tripId)),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Réessayer'),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  setState(() => _currentTrip = _createDemoTrip());
+                },
+                child: const Text('Explorer la carte en mode démo'),
               ),
             ],
-          ),
-        ),
-      ),
-      error: (e, _) => Scaffold(
-        backgroundColor: VoyagoColors.background,
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('🧭', style: TextStyle(fontSize: 48)),
-                const SizedBox(height: 16),
-                const Text(
-                  'Impossible de charger l\'itinéraire',
-                  style: TextStyle(
-                    color: VoyagoColors.text,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  e.toString(),
-                  style: const TextStyle(
-                    color: VoyagoColors.muted,
-                    fontSize: 12,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: () => ref.invalidate(tripDetailProvider(widget.tripId)),
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Réessayer'),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () {
-                    setState(() => _currentTrip = _createDemoTrip());
-                  },
-                  child: const Text('Explorer la carte en mode démo'),
-                ),
-              ],
-            ),
           ),
         ),
       ),
