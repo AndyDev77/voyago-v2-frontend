@@ -14,6 +14,15 @@ class HomeScreen extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final user = authState.user;
 
+    // Redirection automatique pour tout utilisateur connecté qui n'a pas validé l'onboarding
+    if (authState.sessionLoaded && user != null && !user.onboardingCompleted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          context.go('/onboarding');
+        }
+      });
+    }
+
     return Scaffold(
       backgroundColor: VoyagoColors.background,
       appBar: AppBar(

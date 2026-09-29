@@ -69,11 +69,25 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           _LoginTab(
             initialEmail: _prefilledLoginEmail,
             onForgotPassword: () => context.go('/forgot-password'),
-            onSuccess: () => context.go('/'),
+            onSuccess: () {
+              final user = ref.read(currentUserProvider);
+              if (user != null && !user.onboardingCompleted) {
+                context.go('/onboarding');
+              } else {
+                context.go('/');
+              }
+            },
           ),
           _SignupTab(
             onSwitchToLogin: _switchToLogin,
-            onSuccess: () => context.go('/'),
+            onSuccess: () {
+              final user = ref.read(currentUserProvider);
+              if (user != null && !user.onboardingCompleted) {
+                context.go('/onboarding');
+              } else {
+                context.go('/');
+              }
+            },
           ),
         ],
       ),

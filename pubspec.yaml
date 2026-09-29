@@ -25,6 +25,7 @@ dependencies:
   http: ^1.2.0
   weather_animation: ^1.2.0
   confetti: ^0.8.0
+  video_player: ^2.10.1
 
 dev_dependencies:
   flutter_test:
@@ -36,3 +37,4 @@ flutter:
   assets:
     - assets/
     - assets/logo/
+    - assets/medias/

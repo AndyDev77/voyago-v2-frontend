@@ -167,7 +167,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
     );
     if (confirm == true && mounted) {
       await ref.read(authProvider.notifier).logout();
-      if (mounted) context.go('/');
+      if (mounted) context.go('/welcome');
     }
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../api/api.dart';
 import '../core/utils/form_validators.dart';
 import '../providers/auth_provider.dart';
@@ -78,6 +79,10 @@ class _AuthBottomSheetState extends ConsumerState<AuthBottomSheet>
           );
       if (mounted) {
         Navigator.of(context).pop(true);
+        final user = ref.read(currentUserProvider);
+        if (user != null && !user.onboardingCompleted) {
+          context.go('/onboarding');
+        }
       }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -206,6 +211,10 @@ class _AuthBottomSheetState extends ConsumerState<AuthBottomSheet>
           );
       if (mounted) {
         Navigator.of(context).pop(true);
+        final user = ref.read(currentUserProvider);
+        if (user != null && !user.onboardingCompleted) {
+          context.go('/onboarding');
+        }
       }
     } on ApiException catch (e) {
       if (e.statusCode == 409 || e is ConflictException) {

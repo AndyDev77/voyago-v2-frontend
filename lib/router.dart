@@ -15,6 +15,7 @@ import 'screens/community_screen.dart';
 import 'screens/xp_rewards_screen.dart';
 import 'screens/public_user_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/welcome_screen.dart';
 
 class RouterNotifier extends ChangeNotifier {
   final Ref _ref;
@@ -29,24 +30,31 @@ class RouterNotifier extends ChangeNotifier {
   String? redirect(BuildContext context, GoRouterState state) {
     final authState = _ref.read(authProvider);
     final user = authState.user;
-    final isLoggedIn = authState.isLoggedIn;
-    final location = state.matchedLocation;
+    final uriPath = state.uri.path;
+    final matchedPath = state.matchedLocation;
+    final isOnboarding = uriPath == '/onboarding' || matchedPath == '/onboarding';
+    final isWelcome = uriPath == '/welcome' || matchedPath == '/welcome';
 
     if (!authState.sessionLoaded) return null;
 
-    // Si l'utilisateur est connecté et n'a pas encore complété son onboarding obligatoire
-    if (isLoggedIn && user != null && !user.onboardingCompleted) {
-      if (location != '/onboarding') {
+    // Si l'utilisateur existe et n'a pas encore complété son onboarding obligatoire
+    if (user != null && !user.onboardingCompleted) {
+      if (!isOnboarding) {
         return '/onboarding';
       }
       return null;
     }
 
     // Si l'utilisateur a déjà complété l'onboarding et tente d'y retourner
-    if (location == '/onboarding') {
-      if (!isLoggedIn || (user != null && user.onboardingCompleted)) {
+    if (isOnboarding) {
+      if (user == null || user.onboardingCompleted) {
         return '/';
       }
+    }
+
+    // Si l'utilisateur est connecté et tente d'aller sur la page d'accueil de bienvenue
+    if (user != null && isWelcome) {
+      return '/';
     }
 
     return null;
@@ -62,9 +70,13 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     refreshListenable: notifier,
-    initialLocation: '/',
+    initialLocation: '/welcome',
     redirect: notifier.redirect,
     routes: [
+      GoRoute(
+        path: '/welcome',
+        builder: (context, state) => const WelcomeScreen(),
+      ),
       GoRoute(
         path: '/',
         builder: (context, state) => const HomeScreen(),

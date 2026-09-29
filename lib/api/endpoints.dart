@@ -20,6 +20,9 @@ class Endpoints {
       return localhostBackendUrl;
     }
     if (Platform.isAndroid) {
+      if (kReleaseMode) {
+        return localNetworkBackendUrl;
+      }
       return androidEmulatorBackendUrl;
     }
     return localhostBackendUrl;
@@ -37,7 +40,7 @@ class Endpoints {
   static const String forgotPassword = '/api/auth/forgot-password';
   static const String resetPassword = '/api/auth/reset-password';
   static const String authOptions = '/api/auth/options';
-  static const String updateProfile = '/api/auth/profile';
+  static const String updateProfile = '/api/auth/me';
 
   // --- TRIPS MODULE ---
   static const String generateTrip = '/api/trips/generate';
