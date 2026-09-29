@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:video_player/video_player.dart';
 import '../api/api.dart';
 import '../core/utils/form_validators.dart';
 import '../providers/auth_provider.dart';
@@ -375,175 +377,182 @@ class _ConfigureScreenState extends ConsumerState<ConfigureScreen> {
         // Destination Search Section
         const _FieldLabel('OÙ PARTEZ-VOUS ?'),
         const SizedBox(height: 10),
-        Stack(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: _destinationCtrl,
-                  focusNode: _focusNode,
-                  style: const TextStyle(color: VoyagoColors.text, fontSize: 15),
-                  decoration: InputDecoration(
-                    hintText: 'Entrez une ville ou un pays (ex: Tokyo, Japon)',
-                    hintStyle: const TextStyle(color: VoyagoColors.muted, fontSize: 14),
-                    prefixIcon: const Icon(
-                      Icons.location_on,
-                      color: VoyagoColors.primary,
-                      size: 22,
-                    ),
-                    suffixIcon: _isSearchingDestinations
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: Padding(
-                              padding: EdgeInsets.all(12),
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: VoyagoColors.primary,
-                              ),
-                            ),
-                          )
-                        : _destinationCtrl.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, color: VoyagoColors.muted, size: 18),
-                                onPressed: () {
-                                  _destinationCtrl.clear();
-                                  setState(() {
-                                    _selectedCity = null;
-                                    _selectedCountry = null;
-                                    _selectedCountryCode = null;
-                                  });
-                                },
-                              )
-                            : null,
-                  ),
+            TextField(
+              controller: _destinationCtrl,
+              focusNode: _focusNode,
+              style: const TextStyle(color: VoyagoColors.text, fontSize: 15),
+              decoration: InputDecoration(
+                hintText: 'Entrez une ville ou un pays (ex: Conakry, Paris, Tokyo...)',
+                hintStyle: const TextStyle(color: VoyagoColors.muted, fontSize: 14),
+                prefixIcon: const Icon(
+                  Icons.location_on,
+                  color: VoyagoColors.primary,
+                  size: 22,
                 ),
-
-                // Popular Quick Chips
-                const SizedBox(height: 12),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const Text(
-                      'Populaire : ',
-                      style: TextStyle(
-                        color: VoyagoColors.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: DestinationService.popularDestinations.map((dest) {
-                            final isCurrent = _destinationCtrl.text.toLowerCase().contains(dest.name.toLowerCase());
-                            return GestureDetector(
-                              onTap: () => _selectDestination(dest),
-                              child: Container(
-                                margin: const EdgeInsets.only(right: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: isCurrent
-                                      ? VoyagoColors.primary.withOpacity(0.2)
-                                      : VoyagoColors.background,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: isCurrent
-                                        ? VoyagoColors.primary
-                                        : VoyagoColors.cardBorder,
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(dest.flagEmoji, style: const TextStyle(fontSize: 12)),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      dest.name,
-                                      style: TextStyle(
-                                        color: isCurrent
-                                            ? VoyagoColors.primaryLight
-                                            : VoyagoColors.text,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
+                suffixIcon: _isSearchingDestinations
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: VoyagoColors.primary,
+                          ),
                         ),
-                      ),
+                      )
+                    : _destinationCtrl.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, color: VoyagoColors.muted, size: 18),
+                            onPressed: () {
+                              _destinationCtrl.clear();
+                              setState(() {
+                                _selectedCity = null;
+                                _selectedCountry = null;
+                                _selectedCountryCode = null;
+                              });
+                            },
+                          )
+                        : null,
+              ),
+            ),
+
+            // Liste de suggestions d'autocomplétion (parfaitement visible, sans coupure)
+            if (_showSuggestions && _suggestions.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E2230),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: VoyagoColors.primary, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
                     ),
                   ],
                 ),
-              ],
-            ),
-
-            // Autocomplete Dropdown overlay
-            if (_showSuggestions && _suggestions.isNotEmpty)
-              Positioned(
-                top: 58,
-                left: 0,
-                right: 0,
-                child: Material(
-                  elevation: 12,
-                  borderRadius: BorderRadius.circular(16),
-                  color: const Color(0xFF1E2230),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E2230),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: VoyagoColors.primary.withOpacity(0.4)),
+                constraints: const BoxConstraints(maxHeight: 260),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(15),
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    shrinkWrap: true,
+                    itemCount: _suggestions.length,
+                    separatorBuilder: (ctx, i) => Divider(
+                      color: VoyagoColors.cardBorder.withValues(alpha: 0.5),
+                      height: 1,
                     ),
-                    constraints: const BoxConstraints(maxHeight: 220),
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      shrinkWrap: true,
-                      itemCount: _suggestions.length,
-                      separatorBuilder: (ctx, i) => const Divider(
-                        color: VoyagoColors.cardBorder,
-                        height: 1,
-                      ),
-                      itemBuilder: (context, index) {
-                        final item = _suggestions[index];
-                        return ListTile(
-                          dense: true,
-                          leading: Text(
+                    itemBuilder: (context, index) {
+                      final item = _suggestions[index];
+                      return ListTile(
+                        dense: true,
+                        leading: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
                             item.flagEmoji,
                             style: const TextStyle(fontSize: 20),
                           ),
-                          title: Text(
-                            item.name,
-                            style: const TextStyle(
-                              color: VoyagoColors.text,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
+                        ),
+                        title: Text(
+                          item.name,
+                          style: const TextStyle(
+                            color: VoyagoColors.text,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
-                          subtitle: Text(
-                            item.subtitle,
-                            style: const TextStyle(
-                              color: VoyagoColors.muted,
-                              fontSize: 12,
-                            ),
-                          ),
-                          trailing: const Icon(
-                            Icons.north_west,
-                            size: 14,
+                        ),
+                        subtitle: Text(
+                          item.subtitle,
+                          style: const TextStyle(
                             color: VoyagoColors.muted,
+                            fontSize: 12,
                           ),
-                          onTap: () => _selectDestination(item),
-                        );
-                      },
-                    ),
+                        ),
+                        trailing: const Icon(
+                          Icons.north_west,
+                          size: 14,
+                          color: VoyagoColors.primary,
+                        ),
+                        onTap: () => _selectDestination(item),
+                      );
+                    },
                   ),
                 ),
               ),
+            ],
+
+            // Popular Quick Chips
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Text(
+                  'Populaire : ',
+                  style: TextStyle(
+                    color: VoyagoColors.muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: DestinationService.popularDestinations.map((dest) {
+                        final isCurrent = _destinationCtrl.text.toLowerCase().contains(dest.name.toLowerCase());
+                        return GestureDetector(
+                          onTap: () => _selectDestination(dest),
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: isCurrent
+                                  ? VoyagoColors.primary.withValues(alpha: 0.2)
+                                  : VoyagoColors.background,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isCurrent
+                                    ? VoyagoColors.primary
+                                    : VoyagoColors.cardBorder,
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(dest.flagEmoji, style: const TextStyle(fontSize: 12)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  dest.name,
+                                  style: TextStyle(
+                                    color: isCurrent
+                                        ? VoyagoColors.primaryLight
+                                        : VoyagoColors.text,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
         const SizedBox(height: 28),
@@ -872,37 +881,395 @@ class _ConfigureScreenState extends ConsumerState<ConfigureScreen> {
 
   Widget _buildLoading() {
     final state = ref.watch(tripGeneratorProvider);
+    return _TripGenerationLoader(
+      progressMessage: state.progressMessage,
+    );
+  }
+}
+
+class _TravelFact {
+  final String category;
+  final IconData icon;
+  final Color color;
+  final String text;
+
+  const _TravelFact({
+    required this.category,
+    required this.icon,
+    required this.color,
+    required this.text,
+  });
+}
+
+class _TripGenerationLoader extends StatefulWidget {
+  final String? progressMessage;
+
+  const _TripGenerationLoader({this.progressMessage});
+
+  @override
+  State<_TripGenerationLoader> createState() => _TripGenerationLoaderState();
+}
+
+class _TripGenerationLoaderState extends State<_TripGenerationLoader> {
+  VideoPlayerController? _controller;
+  bool _isVideoInitialized = false;
+  Timer? _factTimer;
+  final Random _random = Random();
+  int _currentFactIndex = 0;
+
+  static const List<_TravelFact> _travelFacts = [
+    _TravelFact(
+      category: 'Intelligence Artificielle',
+      icon: Icons.auto_awesome,
+      color: Color(0xFF10B981),
+      text: 'Analyse fine de votre profil et affinage de votre carnet d’aventure personnalisé...',
+    ),
+    _TravelFact(
+      category: 'Itinéraire Intelligent',
+      icon: Icons.alt_route_rounded,
+      color: Color(0xFF3B82F6),
+      text: 'Calcul des trajets optimaux pour vous faire profiter au maximum de chaque journée.',
+    ),
+    _TravelFact(
+      category: 'Pépites & Secrets Locaux',
+      icon: Icons.diamond_outlined,
+      color: Color(0xFFF59E0B),
+      text: 'Dénichage d’adresses confidentielles et de trésors cachés hors des sentiers battus.',
+    ),
+    _TravelFact(
+      category: 'Gastronomie Authentique',
+      icon: Icons.restaurant_rounded,
+      color: Color(0xFFEC4899),
+      text: 'Repérage des spécialités locales et des meilleures tables recommandées par les habitants.',
+    ),
+    _TravelFact(
+      category: 'Climat & Ensoleillement',
+      icon: Icons.wb_sunny_rounded,
+      color: Color(0xFFF59E0B),
+      text: 'Synchronisation des activités suggérées avec les conditions météorologiques idéales.',
+    ),
+    _TravelFact(
+      category: 'Panoramas & Spots Photos',
+      icon: Icons.photo_camera_rounded,
+      color: Color(0xFF8B5CF6),
+      text: 'Identification des plus beaux points de vue aux heures dorées pour vos souvenirs.',
+    ),
+    _TravelFact(
+      category: 'Rythme & Sérénité',
+      icon: Icons.spa_rounded,
+      color: Color(0xFF10B981),
+      text: 'Équilibrage des découvertes culturelles et des pauses détente pour un séjour sans stress.',
+    ),
+    _TravelFact(
+      category: 'Le Saviez-Vous ?',
+      icon: Icons.lightbulb_outline_rounded,
+      color: Color(0xFFEAB308),
+      text: 'Planifier un voyage stimule la production de dopamine et booste le moral instantanément !',
+    ),
+    _TravelFact(
+      category: 'Astuces & Mobilité',
+      icon: Icons.explore_rounded,
+      color: Color(0xFF06B6D4),
+      text: 'Sélection des transports les plus agréables et astuces pour vous déplacer sereinement.',
+    ),
+    _TravelFact(
+      category: 'Budget Optimisé',
+      icon: Icons.savings_outlined,
+      color: Color(0xFF10B981),
+      text: 'Ajustement des suggestions pour tirer le meilleur parti de votre budget de voyage.',
+    ),
+    _TravelFact(
+      category: 'Finitions de l’Aventure',
+      icon: Icons.flight_takeoff_rounded,
+      color: Color(0xFF3B82F6),
+      text: 'Voyago assemble vos étapes dans un carnet de voyage dynamique et interactif...',
+    ),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _currentFactIndex = _random.nextInt(_travelFacts.length);
+    _initializeVideo();
+    _startFactTimer();
+  }
+
+  Future<void> _initializeVideo() async {
+    try {
+      final controller = VideoPlayerController.asset(
+        'assets/medias/gif_logo - Trim.mp4',
+      );
+      _controller = controller;
+      await controller.initialize();
+      await controller.setLooping(true);
+      await controller.setVolume(0.0);
+      await controller.play();
+      if (mounted) {
+        setState(() {
+          _isVideoInitialized = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement vidéo loader: $e');
+    }
+  }
+
+  void _startFactTimer() {
+    _factTimer = Timer.periodic(const Duration(milliseconds: 3200), (timer) {
+      if (!mounted) return;
+      setState(() {
+        int nextIndex;
+        do {
+          nextIndex = _random.nextInt(_travelFacts.length);
+        } while (nextIndex == _currentFactIndex && _travelFacts.length > 1);
+        _currentFactIndex = nextIndex;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _factTimer?.cancel();
+    _controller?.pause();
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fact = _travelFacts[_currentFactIndex];
+    final screenWidth = MediaQuery.of(context).size.width;
+    final videoBoxSize = (screenWidth * 0.58).clamp(190.0, 250.0);
+
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('🦜', style: TextStyle(fontSize: 64)),
-            const SizedBox(height: 24),
-            const CircularProgressIndicator(color: VoyagoColors.primary),
-            const SizedBox(height: 24),
-            const Text(
-              'Voyago prépare votre voyage ! 🦜',
-              style: TextStyle(
-                color: VoyagoColors.text,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Glowing Video Card Container
+              Container(
+                width: videoBoxSize,
+                height: videoBoxSize,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0C1611),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: VoyagoColors.primary.withOpacity(0.35),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: VoyagoColors.primary.withOpacity(0.22),
+                      blurRadius: 36,
+                      spreadRadius: 2,
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.55),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _isVideoInitialized &&
+                        _controller != null &&
+                        _controller!.value.isInitialized
+                    ? Center(
+                        child: AspectRatio(
+                          aspectRatio: _controller!.value.aspectRatio > 0
+                              ? _controller!.value.aspectRatio
+                              : 1.0,
+                          child: VideoPlayer(_controller!),
+                        ),
+                      )
+                    : Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text('🦜', style: TextStyle(fontSize: 48)),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: 26,
+                              height: 26,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: VoyagoColors.primary.withOpacity(0.85),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              state.progressMessage ??
-                  'Notre IA sélectionne les plus beaux lieux et organise votre itinéraire...',
-              style: const TextStyle(
-                color: VoyagoColors.muted,
-                fontSize: 14,
-                height: 1.4,
+
+              const SizedBox(height: 28),
+
+              // Status Pill
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: VoyagoColors.primary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: VoyagoColors.primary.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 8,
+                      height: 8,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: VoyagoColors.primary,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: VoyagoColors.primary.withOpacity(0.8),
+                              blurRadius: 6,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Création de votre voyage...',
+                      style: TextStyle(
+                        color: VoyagoColors.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+
+              const SizedBox(height: 14),
+
+              // Main Heading
+              const Text(
+                'Voyago prépare votre aventure ! 🦜',
+                style: TextStyle(
+                  color: VoyagoColors.text,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.3,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 8),
+
+              if (widget.progressMessage != null &&
+                  widget.progressMessage!.isNotEmpty) ...[
+                Text(
+                  widget.progressMessage!,
+                  style: const TextStyle(
+                    color: VoyagoColors.muted,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+              ] else
+                const SizedBox(height: 12),
+
+              // Dynamic Randomized Travel Fact / Tip Card
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 450),
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0.0, 0.15),
+                        end: Offset.zero,
+                      ).animate(CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      )),
+                      child: child,
+                    ),
+                  );
+                },
+                child: Container(
+                  key: ValueKey<int>(_currentFactIndex),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: VoyagoColors.surface.withOpacity(0.75),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: fact.color.withOpacity(0.28),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: fact.color.withOpacity(0.06),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(fact.icon, size: 16, color: fact.color),
+                          const SizedBox(width: 6),
+                          Text(
+                            fact.category.toUpperCase(),
+                            style: TextStyle(
+                              color: fact.color,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        fact.text,
+                        style: const TextStyle(
+                          color: VoyagoColors.text,
+                          fontSize: 13,
+                          height: 1.45,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Indeterminate Mini Progress Bar
+              SizedBox(
+                width: 140,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: const LinearProgressIndicator(
+                    backgroundColor: Color(0xFF1E2E25),
+                    valueColor: AlwaysStoppedAnimation<Color>(VoyagoColors.primary),
+                    minHeight: 3,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

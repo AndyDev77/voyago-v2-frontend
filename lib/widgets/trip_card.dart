@@ -26,7 +26,7 @@ class TripCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final coverPoi = trip.firstPoiWithImage;
+    final coverUrl = trip.displayCoverImage;
     final dateStr = _formatDate(trip.createdAt);
 
     return GestureDetector(
@@ -41,12 +41,12 @@ class TripCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Cover image
+            // Cover image (Édifice emblématique du pays ou premier POI)
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              child: coverPoi?.imageUrl != null
+              child: coverUrl != null && coverUrl.isNotEmpty
                   ? CachedNetworkImage(
-                      imageUrl: coverPoi!.imageUrl!,
+                      imageUrl: coverUrl,
                       height: 180,
                       width: double.infinity,
                       fit: BoxFit.cover,

@@ -15,6 +15,7 @@ class Trip {
   final String? city;
   final String? country;
   final String? countryCode;
+  final String? coverImageUrl;
   final String? startDate;
   final String? endDate;
   final bool isPublic;
@@ -35,6 +36,7 @@ class Trip {
     this.city,
     this.country,
     this.countryCode,
+    this.coverImageUrl,
     this.startDate,
     this.endDate,
     required this.isPublic,
@@ -75,6 +77,7 @@ class Trip {
       city: json['city']?.toString(),
       country: json['country']?.toString(),
       countryCode: json['country_code']?.toString() ?? json['countryCode']?.toString(),
+      coverImageUrl: json['cover_image_url']?.toString() ?? json['coverImageUrl']?.toString(),
       startDate: json['start_date']?.toString() ?? json['startDate']?.toString(),
       endDate: json['end_date']?.toString() ?? json['endDate']?.toString(),
       pace: json['pace']?.toString() ?? '',
@@ -104,6 +107,7 @@ class Trip {
       if (city != null) 'city': city,
       if (country != null) 'country': country,
       if (countryCode != null) 'country_code': countryCode,
+      if (coverImageUrl != null) 'cover_image_url': coverImageUrl,
       if (startDate != null) 'start_date': startDate,
       if (endDate != null) 'end_date': endDate,
       'pace': pace,
@@ -131,5 +135,12 @@ class Trip {
     } catch (_) {
       return pois.isNotEmpty ? pois.first : null;
     }
+  }
+
+  String? get displayCoverImage {
+    if (coverImageUrl != null && coverImageUrl!.isNotEmpty) {
+      return coverImageUrl;
+    }
+    return firstPoiWithImage?.imageUrl;
   }
 }
