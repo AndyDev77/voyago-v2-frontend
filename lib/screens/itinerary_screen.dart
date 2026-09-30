@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_animations/flutter_map_animations.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:go_router/go_router.dart';
 import '../models/trip.dart';
@@ -45,8 +46,11 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
   List<CityLocation> _searchResults = [];
   bool _isSearching = false;
   bool _showWeatherCard = true;
+  bool _isWeatherMinimized = false;
   bool _forceDayMap = false;
   LatLng? _currentCenter;
+  LatLng? _liveUserPosition;
+  StreamSubscription<Position>? _userPositionSub;
   Timer? _ambianceRefreshTimer;
 
   @override
@@ -69,6 +73,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
       },
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initLiveLocationAndWeather();
       _bootstrapLiveWeather();
     });
   }
@@ -97,22 +102,166 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
     }
   }
 
+  void _showSafeSnackBar(SnackBar snackBar) {
+    if (!mounted) return;
+    try {
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.hideCurrentSnackBar();
+      messenger?.showSnackBar(snackBar);
+    } catch (_) {}
+  }
+
+  /// Initialise la géolocalisation en temps réel de l'utilisateur (comme sur hellobarber)
+  /// et récupère automatiquement la météo dynamique correspondant à sa position réelle.
+  Future<void> _initLiveLocationAndWeather({bool centerOnUser = false}) async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (centerOnUser) {
+          _showSafeSnackBar(
+            const SnackBar(
+              content: Text('Veuillez activer le GPS pour vous localiser.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (centerOnUser) {
+            _showSafeSnackBar(
+              const SnackBar(
+                content: Text('Permission de localisation requise pour la position en temps réel.'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (centerOnUser) {
+          _showSafeSnackBar(
+            const SnackBar(
+              content: Text('La localisation est désactivée dans les paramètres de votre appareil.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 1. Tenter la dernière position connue pour une réactivité instantanée
+      Position? position;
+      try {
+        position = await Geolocator.getLastKnownPosition();
+      } catch (_) {}
+
+      // 2. Obtenir la position actuelle précise
+      position ??= await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+
+      final userCoords = LatLng(position.latitude, position.longitude);
+      if (!mounted) return;
+
+      setState(() {
+        _liveUserPosition = userCoords;
+      });
+
+      // Si l'utilisateur clique sur le bouton de position, ou si aucun voyage n'a encore fixé le centre
+      if (centerOnUser || (_currentTrip == null && _currentCenter == null)) {
+        setState(() {
+          _currentCenter = userCoords;
+        });
+        _animatedMapController.animateTo(dest: userCoords, zoom: 15.5);
+      }
+
+      // 3. Écouter les mises à jour en continu en temps réel (comme hellobarber)
+      _subscribeUserPositionUpdates();
+
+      // 4. Charger la météo dynamique en direct selon la position GPS exacte
+      await _updateWeatherForPosition(
+        userCoords.latitude,
+        userCoords.longitude,
+        autoUpdateCity: _currentTrip == null || _activeCityName.isEmpty,
+      );
+    } catch (e) {
+      debugPrint('Erreur lors de l\'initialisation GPS : $e');
+    }
+  }
+
+  void _subscribeUserPositionUpdates() {
+    _userPositionSub?.cancel();
+    _userPositionSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.medium,
+        distanceFilter: 15,
+      ),
+    ).listen(
+      (Position p) {
+        if (!mounted) return;
+        setState(() {
+          _liveUserPosition = LatLng(p.latitude, p.longitude);
+        });
+      },
+      onError: (_) {},
+    );
+  }
+
+  Future<void> _updateWeatherForPosition(
+    double lat,
+    double lng, {
+    bool autoUpdateCity = false,
+  }) async {
+    final weatherList = await LiveWeatherService.instance.fetchWeather(lat, lng);
+    if (!mounted) return;
+    setState(() {
+      _dynamicWeather = weatherList;
+      _showWeatherCard = true;
+    });
+
+    if (autoUpdateCity) {
+      final city = await LiveWeatherService.instance.reverseGeocode(lat, lng);
+      if (city != null && city.isNotEmpty && mounted) {
+        setState(() {
+          _activeCityName = city;
+        });
+      }
+    }
+  }
+
   Future<void> _bootstrapLiveWeather() async {
     final trip = _currentTrip;
     if (trip != null) {
       final pois = trip.poisForDay(1);
-      final lat = pois.isNotEmpty ? pois.first.lat : 48.8566;
-      final lng = pois.isNotEmpty ? pois.first.lng : 2.3522;
+      final lat = pois.isNotEmpty ? pois.first.lat : (_liveUserPosition?.latitude ?? 48.8566);
+      final lng = pois.isNotEmpty ? pois.first.lng : (_liveUserPosition?.longitude ?? 2.3522);
       final weather = await LiveWeatherService.instance.fetchWeather(lat, lng);
       if (mounted) {
         setState(() => _dynamicWeather = weather);
       }
+    } else if (_liveUserPosition != null) {
+      await _updateWeatherForPosition(
+        _liveUserPosition!.latitude,
+        _liveUserPosition!.longitude,
+        autoUpdateCity: true,
+      );
     }
   }
 
   @override
   void dispose() {
     _ambianceRefreshTimer?.cancel();
+    _userPositionSub?.cancel();
     _animatedMapController.dispose();
     _searchCtrl.dispose();
     _searchFocus.dispose();
@@ -144,6 +293,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
       _activeCityName = city.name;
       _searchResults = [];
       _isSearching = false;
+      _forceDayMap = false; // Réinitialise pour appliquer l'ambiance astronomique réelle du lieu recherché
       _searchCtrl.text = city.displayName;
     });
 
@@ -157,7 +307,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
         _dynamicWeather = weatherList;
         _showWeatherCard = true;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
+      _showSafeSnackBar(
         SnackBar(
           content: Row(
             children: [
@@ -304,7 +454,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
     final center = _currentCenter ??
         (dayPois.isNotEmpty
             ? LatLng(dayPois.first.lat, dayPois.first.lng)
-            : const LatLng(48.8566, 2.3522));
+            : (_liveUserPosition ?? const LatLng(48.8566, 2.3522)));
 
     // Dynamic weather if city was searched, else trip's weather
     DayWeather? activeWeather;
@@ -458,6 +608,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
               ambiance: ambiance,
               weather: activeWeather,
               topInset: MediaQuery.of(context).padding.top,
+              forceDay: _forceDayMap,
             ),
           ),
 
@@ -674,23 +825,24 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
             ),
           ),
 
-          // === 3. DYNAMIC WEATHER OVERLAY (TRANSPARENT, SANS FOND OPAQUE) ===
+          // === 3. DYNAMIC WEATHER OVERLAY (TRANSPARENT, SANS FOND OPAQUE, MINIFIABLE) ===
           if (activeWeather != null && _showWeatherCard)
             Positioned(
-              top: MediaQuery.of(context).padding.top + 58,
+              top: MediaQuery.of(context).padding.top + 68,
               left: 0,
               right: 0,
-              child: GestureDetector(
-                onDoubleTap: () => setState(() => _showWeatherCard = false),
-                child: WeatherOverlay(
-                  weather: activeWeather,
-                  dayNumber: _selectedDay,
-                  ambianceLabel: ambiance.phaseLabel,
-                  ambianceIcon: ambiance.phaseIcon,
-                  aiTip: getWeatherAiTip(
-                    activeWeather,
-                    ref.watch(currentUserProvider)?.thermalSensitivity,
-                  ),
+              child: WeatherOverlay(
+                weather: activeWeather,
+                dayNumber: _selectedDay,
+                ambianceLabel: ambiance.phaseLabel,
+                ambianceIcon: ambiance.phaseIcon,
+                isMinimized: _isWeatherMinimized,
+                onToggleMinimize: () {
+                  setState(() => _isWeatherMinimized = !_isWeatherMinimized);
+                },
+                aiTip: getWeatherAiTip(
+                  activeWeather,
+                  ref.watch(currentUserProvider)?.thermalSensitivity,
                 ),
               ),
             ),
@@ -701,18 +853,17 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
             bottom: MediaQuery.of(context).size.height * 0.46 + 12,
             child: Column(
               children: [
-                // Bascule Style Carte : Plein Jour (100% rues/édifices clairs) ou Ambiance Réelle (100% gratuit sans filigrane)
+                // Bascule Style Carte : Plein Jour forcé ou Ambiance Réelle Dynamique (comme hellobarber)
                 _MapButton(
-                  icon: _forceDayMap ? Icons.wb_sunny_rounded : Icons.dark_mode_rounded,
+                  icon: _forceDayMap ? Icons.wb_sunny_rounded : ambiance.phaseIcon,
                   onTap: () {
                     setState(() => _forceDayMap = !_forceDayMap);
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    _showSafeSnackBar(
                       SnackBar(
                         content: Text(
                           _forceDayMap
-                              ? '☀️ Mode Plein Jour activé (rues et édifices en pleine lumière)'
-                              : '🌙 Mode Ambiance Solaire réactivé',
+                              ? '☀️ Mode Plein Jour forcé'
+                              : '✨ Ambiance solaire dynamique rétablie (${ambiance.phaseLabel})',
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         duration: const Duration(seconds: 2),
@@ -724,14 +875,33 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                 const SizedBox(height: 8),
                 _MapButton(
                   icon: Icons.my_location,
-                  onTap: () {
-                    if (dayPois.isNotEmpty) {
+                  onTap: () async {
+                    setState(() => _forceDayMap = false); // Rétablit l'ambiance réelle de la position utilisateur
+                    if (_liveUserPosition != null) {
                       _animatedMapController.animateTo(
-                        dest: LatLng(dayPois.first.lat, dayPois.first.lng),
-                        zoom: 14,
+                        dest: _liveUserPosition!,
+                        zoom: 16.0,
+                      );
+                      _updateWeatherForPosition(
+                        _liveUserPosition!.latitude,
+                        _liveUserPosition!.longitude,
+                      );
+                      _showSafeSnackBar(
+                        const SnackBar(
+                          content: Row(
+                            children: [
+                              Icon(Icons.gps_fixed, color: VoyagoColors.primary, size: 18),
+                              SizedBox(width: 8),
+                              Text('Centré sur votre position GPS en temps réel'),
+                            ],
+                          ),
+                          duration: Duration(seconds: 2),
+                          behavior: SnackBarBehavior.floating,
+                        ),
                       );
                     } else {
-                      _animatedMapController.animateTo(dest: center, zoom: 14);
+                      // Demande et acquisition en direct de la position GPS
+                      await _initLiveLocationAndWeather(centerOnUser: true);
                     }
                   },
                 ),

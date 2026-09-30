@@ -2,9 +2,17 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
-enum MapAmbiancePhase { day, goldenHour, twilight, night }
+/// Les 5 phases atmosphériques et solaires astronomiques calculées en temps réel
+/// selon les coordonnées exactes du lieu (position de l'utilisateur ou lieu recherché).
+enum MapAmbiancePhase {
+  dawn,       // Lever du jour / Aube (matin naissant avant le soleil)
+  day,        // Plein jour / Jour ensoleillé (soleil au zénith, carte claire OSM)
+  goldenHour, // Heure dorée (lumière rasante dorée, lever ou coucher)
+  twilight,   // Crépuscule (soir après le coucher du soleil jusqu'à la nuit noire)
+  night,      // Nuit (carte sombre ardoise/cyan, ciel étoilé, lune)
+}
 
-/// Service d'ambiance 100% automatique Jour / Nuit sans aucune clé d'API (100% gratuit).
+/// Service d'ambiance 100% automatique Jour / Nuit / Crépuscule / Lever du jour sans aucune clé d'API.
 /// Inspiré directement de MapAmbianceResolver dans hellobarber_frontend.
 /// Détermine l'ambiance selon :
 /// 1. La géolocalisation ou la ville recherchée (position solaire astronomique exacte par longitude/latitude)
@@ -51,6 +59,14 @@ class MapAmbiance {
      0.00, -0.55,  0.00, 0.0, 195.0,
      0.00,  0.00, -0.42, 0.0, 215.0,
      0.00,  0.00,  0.00, 1.0,   0.0,
+  ]);
+
+  /// Filtre lever du jour doux pour OpenStreetMap
+  static const ColorFilter dawnMatrixFilter = ColorFilter.matrix(<double>[
+    1.02, 0.00, 0.00, 0.0, 12.0,
+    0.00, 0.98, 0.00, 0.0,  6.0,
+    0.00, 0.00, 0.95, 0.0, -4.0,
+    0.00, 0.00, 0.00, 1.0,  0.0,
   ]);
 
   const MapAmbiance({
@@ -124,7 +140,7 @@ class MapAmbiance {
   }
 
   /// Résolution 100% automatique en fonction de la position (lat/lng) et de la météo.
-  /// Aucun forçage manuel : l'ambiance s'adapte en temps réel à l'endroit affiché ou recherché.
+  /// S'adapte dynamiquement à la position GPS de l'utilisateur ou à la ville recherchée.
   static MapAmbiance resolve({
     required LatLng center,
     int? weatherCode,
@@ -142,7 +158,7 @@ class MapAmbiance {
     final sunset = sun.sunsetHour;
 
     // Fenêtres crépusculaires et golden hour (en heures)
-    const twilightWindowHours = 35.0 / 60.0; // 35 min
+    const twilightWindowHours = 40.0 / 60.0; // 40 min
     const goldenWindowHours = 50.0 / 60.0;   // 50 min
 
     final civilDawn = (sunrise - twilightWindowHours).clamp(0.0, 24.0);
@@ -155,14 +171,22 @@ class MapAmbiance {
     if (isStormy) {
       phase = MapAmbiancePhase.night;
     } else if (localHourDecimal < civilDawn || localHourDecimal >= civilDusk) {
+      // Nuit complète
       phase = MapAmbiancePhase.night;
-    } else if (localHourDecimal < sunrise ||
-        (localHourDecimal >= sunset && localHourDecimal < civilDusk)) {
-      phase = MapAmbiancePhase.twilight;
-    } else if (localHourDecimal < (sunrise + goldenWindowHours) ||
-        (localHourDecimal >= (sunset - goldenWindowHours) && localHourDecimal < sunset)) {
+    } else if (localHourDecimal >= civilDawn && localHourDecimal < sunrise) {
+      // Lever du jour (Aube matinale avant que le disque solaire ne perce)
+      phase = MapAmbiancePhase.dawn;
+    } else if (localHourDecimal >= sunrise && localHourDecimal < (sunrise + goldenWindowHours)) {
+      // Heure dorée matinale (soleil rasant du matin)
       phase = MapAmbiancePhase.goldenHour;
+    } else if (localHourDecimal >= (sunset - goldenWindowHours) && localHourDecimal < sunset) {
+      // Heure dorée du soir (coucher de soleil éclatant)
+      phase = MapAmbiancePhase.goldenHour;
+    } else if (localHourDecimal >= sunset && localHourDecimal < civilDusk) {
+      // Crépuscule vespéral (ciel violet/indigo, premières étoiles)
+      phase = MapAmbiancePhase.twilight;
     } else {
+      // Plein jour / Journée ensoleillée
       phase = MapAmbiancePhase.day;
     }
 
@@ -188,6 +212,32 @@ class MapAmbiance {
     int? weatherCode,
   }) {
     switch (phase) {
+      case MapAmbiancePhase.dawn:
+        return MapAmbiance(
+          phase: phase,
+          tileUrlTemplate: osmTileUrl,
+          attribution: osmAttribution,
+          phaseLabel: 'Lever du jour · $timeStr',
+          phaseIcon: Icons.wb_twilight_rounded,
+          isNight: false,
+          localHour: localHour,
+          localMinute: localMinute,
+          customTileFilter: dawnMatrixFilter,
+          tileWarmth: 0.20,
+          ambientOverlay: 0.04,
+          ambientColor: const Color(0xFFFFAB91),
+          skyGradient: const [
+            Color(0x38FF8A65), // Douceur aurore
+            Color(0x20FFB74D), // Doré naissant
+            Color(0x00FFE082),
+          ],
+          skyGradientOpacity: 0.35,
+          showStars: false,
+          showSun: true,
+          showMoon: false,
+          showClouds: true,
+        );
+
       case MapAmbiancePhase.day:
         return MapAmbiance(
           phase: phase,
@@ -226,12 +276,12 @@ class MapAmbiance {
           localHour: localHour,
           localMinute: localMinute,
           customTileFilter: null,
-          tileWarmth: 0.35,
-          ambientOverlay: 0.05,
+          tileWarmth: 0.38,
+          ambientOverlay: 0.06,
           ambientColor: const Color(0xFFFF7043),
           skyGradient: const [
-            Color(0x33FF7043),
-            Color(0x1AFFAB40),
+            Color(0x38FF7043),
+            Color(0x1EFFAB40),
             Color(0x00FFE082),
           ],
           skyGradientOpacity: 0.30,

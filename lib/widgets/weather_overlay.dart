@@ -3,14 +3,17 @@ import '../models/day_weather.dart';
 import '../models/auth_user.dart';
 import '../theme.dart';
 
-/// Composant météo compact et transparent (sans fond de couleur opaque)
-/// pour garantir une visibilité totale de la carte en dessous.
-class WeatherOverlay extends StatelessWidget {
+/// Composant météo compact et transparent pour garantir une visibilité totale de la carte.
+/// Supporte un mode réduit (badge pillule discret) pour ne jamais masquer les POIs ou la carte,
+/// et affiche les conseils IA sans coupure de texte.
+class WeatherOverlay extends StatefulWidget {
   final DayWeather weather;
   final String? aiTip;
   final int dayNumber;
   final String? ambianceLabel;
   final IconData? ambianceIcon;
+  final bool isMinimized;
+  final VoidCallback? onToggleMinimize;
   final VoidCallback? onTap;
 
   const WeatherOverlay({
@@ -20,125 +23,241 @@ class WeatherOverlay extends StatelessWidget {
     this.dayNumber = 1,
     this.ambianceLabel,
     this.ambianceIcon,
+    this.isMinimized = false,
+    this.onToggleMinimize,
     this.onTap,
   });
 
   @override
+  State<WeatherOverlay> createState() => _WeatherOverlayState();
+}
+
+class _WeatherOverlayState extends State<WeatherOverlay> {
+  bool _tipExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    if (widget.isMinimized) {
+      return Center(
+        child: GestureDetector(
+          onTap: widget.onToggleMinimize,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.2),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.weather.icon,
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '${widget.weather.tempMax.round()}°',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  widget.weather.summary,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  width: 3,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'J${widget.dayNumber}',
+                  style: const TextStyle(
+                    color: VoyagoColors.primary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: Colors.white.withValues(alpha: 0.7),
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
+        color: Colors.black.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.15),
+          color: Colors.white.withValues(alpha: 0.18),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: Row(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Left: Weather icon + Temperature
-          Text(
-            weather.icon,
-            style: const TextStyle(fontSize: 22),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '${weather.tempMax.round()}°',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              shadows: [
-                Shadow(color: Colors.black, blurRadius: 4),
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
-          // Condition & Day
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+          // Ligne supérieure : icône météo, température, résumé et bouton de repli
+          Row(
             children: [
               Text(
-                weather.summary,
+                widget.weather.icon,
+                style: const TextStyle(fontSize: 22),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${widget.weather.tempMax.round()}°',
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
                   shadows: [
                     Shadow(color: Colors.black, blurRadius: 4),
                   ],
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (ambianceIcon != null) ...[
-                    Icon(
-                      ambianceIcon,
-                      size: 11,
-                      color: Colors.amberAccent,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.weather.summary,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        shadows: [
+                          Shadow(color: Colors.black, blurRadius: 4),
+                        ],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(width: 3),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.ambianceIcon != null) ...[
+                          Icon(
+                            widget.ambianceIcon,
+                            size: 11,
+                            color: Colors.amberAccent,
+                          ),
+                          const SizedBox(width: 3),
+                        ],
+                        Text(
+                          widget.ambianceLabel != null
+                              ? '${widget.ambianceLabel} · J${widget.dayNumber}'
+                              : '↓ ${widget.weather.tempMin.round()}° · J${widget.dayNumber}',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
-                  Text(
-                    ambianceLabel != null
-                        ? '$ambianceLabel · J$dayNumber'
-                        : '↓ ${weather.tempMin.round()}° · J$dayNumber',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
+                ),
+              ),
+              // Bouton pour réduire la carte météo afin de dégager la vue sur la carte
+              if (widget.onToggleMinimize != null)
+                GestureDetector(
+                  onTap: widget.onToggleMinimize,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.keyboard_arrow_up_rounded,
+                      color: Colors.white,
+                      size: 18,
                     ),
                   ),
-                ],
-              ),
+                ),
             ],
           ),
 
-          const Spacer(),
-
-          // Right: AI Tip Capsule
-          if (aiTip != null && aiTip!.isNotEmpty)
-            Flexible(
+          // Ligne inférieure : Conseil IA complet sans troncature
+          if (widget.aiTip != null && widget.aiTip!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => setState(() => _tipExpanded = !_tipExpanded),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: VoyagoColors.primary.withValues(alpha: 0.2),
+                  color: VoyagoColors.primary.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: VoyagoColors.primary.withValues(alpha: 0.35),
+                    color: VoyagoColors.primary.withValues(alpha: 0.4),
                   ),
                 ),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.auto_awesome,
-                      color: VoyagoColors.primary,
-                      size: 13,
+                    const Padding(
+                      padding: EdgeInsets.only(top: 1),
+                      child: Icon(
+                        Icons.auto_awesome,
+                        color: VoyagoColors.primary,
+                        size: 13,
+                      ),
                     ),
-                    const SizedBox(width: 4),
-                    Flexible(
+                    const SizedBox(width: 6),
+                    Expanded(
                       child: Text(
-                        aiTip!,
+                        widget.aiTip!,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
+                          height: 1.25,
                         ),
-                        maxLines: 1,
+                        maxLines: _tipExpanded ? 4 : 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -146,6 +265,7 @@ class WeatherOverlay extends StatelessWidget {
                 ),
               ),
             ),
+          ],
         ],
       ),
     );
