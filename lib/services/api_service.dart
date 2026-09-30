@@ -183,7 +183,8 @@ class ApiService {
   Future<Map<String, dynamic>> awardXP(String userId, String action) =>
       gamification.awardXp(userId: userId, action: action);
 
-  Future<Map<String, dynamic>> getXpRewards() => gamification.getXpRewards();
+  Future<Map<String, dynamic>> getXpRewards([String? userId]) =>
+      gamification.getXpRewards(userId);
 
   Future<List<Map<String, dynamic>>> getBadges() => gamification.getBadges();
 

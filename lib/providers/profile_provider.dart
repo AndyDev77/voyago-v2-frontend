@@ -19,6 +19,12 @@ final xpRewardsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   return api.getXpRewards();
 });
 
+/// Provider pour les récompenses XP personnalisées selon l'utilisateur
+final userXpRewardsProvider = FutureProvider.family<Map<String, dynamic>, String?>((ref, userId) async {
+  final api = ref.watch(gamificationApiProvider);
+  return api.getXpRewards(userId);
+});
+
 /// Provider pour le catalogue des badges
 final badgesCatalogProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final api = ref.watch(gamificationApiProvider);

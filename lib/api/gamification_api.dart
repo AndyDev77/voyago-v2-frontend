@@ -27,8 +27,11 @@ class GamificationApi {
   }
 
   /// Catalogue des récompenses XP & seuils de niveaux
-  Future<Map<String, dynamic>> getXpRewards() async {
-    final data = await _client.get(Endpoints.xpRewards);
+  Future<Map<String, dynamic>> getXpRewards([String? userId]) async {
+    final path = (userId != null && userId.isNotEmpty)
+        ? '${Endpoints.xpRewards}/$userId'
+        : Endpoints.xpRewards;
+    final data = await _client.get(path);
     return data as Map<String, dynamic>;
   }
 

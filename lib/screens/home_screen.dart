@@ -517,6 +517,7 @@ class _UserBanner extends ConsumerWidget {
         final progress = (xpInLevel / 100.0).clamp(0.0, 1.0);
 
         return GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: () => context.go('/xp-rewards'),
           child: Container(
             padding: EdgeInsets.all(4.w.clamp(14.0, 18.0)),
@@ -834,7 +835,9 @@ class _HeroSectionState extends State<_HeroSection> {
 
   @override
   void dispose() {
-    _globeController.dispose();
+    try {
+      _globeController.dispose();
+    } catch (_) {}
     super.dispose();
   }
 
