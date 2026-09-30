@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:sizer/sizer.dart';
 import 'services/storage_service.dart';
 import 'router.dart';
 import 'theme.dart';
@@ -20,11 +21,15 @@ class VoyagoApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
 
-    return MaterialApp.router(
-      title: 'Voyago',
-      theme: voyagoTheme,
-      routerConfig: router,
-      debugShowCheckedModeBanner: false,
+    return Sizer(
+      builder: (context, orientation, deviceType) {
+        return MaterialApp.router(
+          title: 'Voyago',
+          theme: voyagoTheme,
+          routerConfig: router,
+          debugShowCheckedModeBanner: false,
+        );
+      },
     );
   }
 }
