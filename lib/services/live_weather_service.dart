@@ -1,5 +1,5 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../models/day_weather.dart';
 
 class CityLocation {
@@ -18,12 +18,33 @@ class CityLocation {
   String get displayName => country.isNotEmpty ? '$name, $country' : name;
 }
 
+class _CachedWeather {
+  final List<DayWeather> list;
+  final DateTime fetchedAt;
+  const _CachedWeather(this.list, this.fetchedAt);
+}
+
 class LiveWeatherService {
   LiveWeatherService._();
   static final LiveWeatherService instance = LiveWeatherService._();
 
+  static const Duration _cacheTtl = Duration(minutes: 20);
+
+  final Dio _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 8),
+      receiveTimeout: const Duration(seconds: 10),
+    ),
+  );
+
+  final Map<String, _CachedWeather> _cache = {};
+
+  String _cacheKey(double lat, double lng) =>
+      '${lat.toStringAsFixed(2)}_${lng.toStringAsFixed(2)}';
+
   static const List<CityLocation> _presetCities = [
     CityLocation(name: 'Paris', country: 'France', lat: 48.8566, lng: 2.3522),
+    CityLocation(name: 'Versailles', country: 'France', lat: 48.8049, lng: 2.1204),
     CityLocation(name: 'Tokyo', country: 'Japon', lat: 35.6762, lng: 139.6503),
     CityLocation(name: 'Rome', country: 'Italie', lat: 41.9028, lng: 12.4964),
     CityLocation(name: 'Barcelone', country: 'Espagne', lat: 41.3851, lng: 2.1734),
@@ -47,30 +68,38 @@ class LiveWeatherService {
     // Check presets first
     final matchedPresets = _presetCities
         .where((c) =>
+            c.name.toLowerCase() == clean ||
             c.name.toLowerCase().contains(clean) ||
-            c.country.toLowerCase().contains(clean))
+            clean.startsWith(c.name.toLowerCase()))
         .toList();
 
-    if (matchedPresets.isNotEmpty) {
+    if (matchedPresets.isNotEmpty && !query.contains(',')) {
       return matchedPresets;
     }
 
-    // Call Nominatim Geocoding
+    // Call Nominatim Geocoding via Dio
     try {
-      final url = Uri.parse(
-          'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query)}&format=json&limit=5&addressdetails=1');
-      final res = await http.get(url, headers: {
-        'User-Agent': 'VoyagoApp/1.0',
-      }).timeout(const Duration(seconds: 4));
+      final res = await _dio.get(
+        'https://nominatim.openstreetmap.org/search',
+        queryParameters: {
+          'q': query,
+          'format': 'json',
+          'limit': '5',
+          'addressdetails': '1',
+        },
+        options: Options(
+          headers: {'User-Agent': 'VoyagoApp/1.0 (contact@voyago.com)'},
+        ),
+      );
 
-      if (res.statusCode == 200) {
-        final List data = jsonDecode(res.body);
-        return data.map((item) {
+      if (res.statusCode == 200 && res.data is List) {
+        final List data = res.data as List;
+        final list = data.map((item) {
           final lat = double.tryParse(item['lat']?.toString() ?? '0') ?? 0.0;
           final lon = double.tryParse(item['lon']?.toString() ?? '0') ?? 0.0;
           final name = (item['name'] as String?)?.isNotEmpty == true
               ? item['name'] as String
-              : (item['display_name'] as String).split(',').first;
+              : (item['display_name'] as String).split(',').first.trim();
           final country = item['address']?['country'] as String? ?? '';
           return CityLocation(
             name: name,
@@ -79,28 +108,45 @@ class LiveWeatherService {
             lng: lon,
           );
         }).toList();
-      }
-    } catch (_) {}
 
-    return matchedPresets;
+        if (list.isNotEmpty) return list;
+      }
+    } catch (e) {
+      debugPrint('⚠️ [LiveWeatherService] Erreur géocodage Nominatim: $e');
+    }
+
+    return matchedPresets.isNotEmpty ? matchedPresets : _presetCities.take(3).toList();
   }
 
-  /// Fetches real-time weather from Open-Meteo for any latitude/longitude
+  /// Fetches real-time weather from Open-Meteo for any latitude/longitude with 20min caching
   Future<List<DayWeather>> fetchWeather(double lat, double lng) async {
+    final key = _cacheKey(lat, lng);
+    final cached = _cache[key];
+    if (cached != null &&
+        DateTime.now().difference(cached.fetchedAt) < _cacheTtl) {
+      return cached.list;
+    }
+
     try {
-      final url = Uri.parse(
-        'https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lng&current=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto',
+      final response = await _dio.get<Map<String, dynamic>>(
+        'https://api.open-meteo.com/v1/forecast',
+        queryParameters: {
+          'latitude': lat,
+          'longitude': lng,
+          'current': 'temperature_2m,weather_code,is_day,precipitation,rain',
+          'daily': 'weather_code,temperature_2m_max,temperature_2m_min',
+          'timezone': 'auto',
+        },
       );
 
-      final res = await http.get(url).timeout(const Duration(seconds: 6));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
+      final data = response.data;
+      if (data != null) {
         final current = data['current'] as Map<String, dynamic>?;
         final currentCode = (current?['weather_code'] as num?)?.toInt();
         final currentTemp = (current?['temperature_2m'] as num?)?.toDouble();
         final isDayNow = ((current?['is_day'] as num?)?.toInt() ?? 1) == 1;
 
-        final daily = data['daily'];
+        final daily = data['daily'] as Map<String, dynamic>?;
         if (daily != null) {
           final dates = daily['time'] as List? ?? [];
           final codes = daily['weather_code'] as List? ?? [];
@@ -108,15 +154,16 @@ class LiveWeatherService {
           final minTemps = daily['temperature_2m_min'] as List? ?? [];
 
           final List<DayWeather> list = [];
-          for (var i = 0; i < dates.length; i++) {
+          final count = dates.isNotEmpty ? dates.length : 1;
+          for (var i = 0; i < count; i++) {
             final isToday = i == 0;
             final code = (isToday && currentCode != null)
                 ? currentCode
-                : ((codes[i] as num?)?.toInt() ?? 0);
+                : ((i < codes.length ? codes[i] as num? : null)?.toInt() ?? 0);
             final maxT = (isToday && currentTemp != null)
                 ? currentTemp
-                : ((maxTemps[i] as num?)?.toDouble() ?? 20.0);
-            final minT = (minTemps[i] as num?)?.toDouble() ?? 14.0;
+                : ((i < maxTemps.length ? maxTemps[i] as num? : null)?.toDouble() ?? 20.0);
+            final minT = ((i < minTemps.length ? minTemps[i] as num? : null)?.toDouble() ?? 14.0);
             final isDay = isToday ? isDayNow : true;
 
             list.add(DayWeather(
@@ -128,10 +175,18 @@ class LiveWeatherService {
               tempMin: minT,
             ));
           }
-          return list;
+
+          if (list.isNotEmpty) {
+            _cache[key] = _CachedWeather(list, DateTime.now());
+            debugPrint('🌤️ [LiveWeatherService] Météo live reçue ($lat, $lng): ${list.first.summary} ${list.first.tempMax.round()}°C (code ${list.first.weatherCode})');
+            return list;
+          }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('⚠️ [LiveWeatherService] Erreur appel Open-Meteo: $e');
+      if (cached != null) return cached.list;
+    }
 
     // Fallback dynamique
     final nowHour = DateTime.now().hour;
@@ -141,9 +196,9 @@ class LiveWeatherService {
         date: 'Aujourd\'hui',
         icon: isNightNow ? '🌙' : '🌤️',
         summary: isNightNow ? 'Nuit dégagée' : 'Partiellement nuageux',
-        weatherCode: 1,
-        tempMax: 24.0,
-        tempMin: 18.0,
+        weatherCode: 0,
+        tempMax: isNightNow ? 16.0 : 20.0,
+        tempMin: 12.0,
       )
     ];
   }
@@ -151,15 +206,21 @@ class LiveWeatherService {
   /// Reverse geocodes latitude/longitude into City / Country name
   Future<String?> reverseGeocode(double lat, double lng) async {
     try {
-      final url = Uri.parse(
-        'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lng&format=json&zoom=10',
+      final res = await _dio.get(
+        'https://nominatim.openstreetmap.org/reverse',
+        queryParameters: {
+          'lat': lat,
+          'lon': lng,
+          'format': 'json',
+          'zoom': '10',
+        },
+        options: Options(
+          headers: {'User-Agent': 'VoyagoApp/1.0 (contact@voyago.com)'},
+        ),
       );
-      final res = await http.get(url, headers: {
-        'User-Agent': 'VoyagoApp/1.0',
-      }).timeout(const Duration(seconds: 4));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final address = data['address'] as Map<String, dynamic>?;
+      if (res.statusCode == 200 && res.data is Map) {
+        final data = res.data as Map;
+        final address = data['address'] as Map?;
         if (address != null) {
           final city = address['city'] ?? address['town'] ?? address['village'] ?? address['county'];
           final country = address['country'];
@@ -180,25 +241,26 @@ class LiveWeatherService {
 
   static String _weatherCodeToIcon(int code, {bool isDay = true}) {
     if (code >= 95) return '⛈️';
-    if (code >= 80) return '🌧️';
-    if (code >= 71) return '❄️';
-    if (code >= 61) return '🌧️';
-    if (code >= 51) return '🌦️';
-    if (code >= 45) return '🌫️';
-    if (code >= 3) return '☁️';
-    if (code >= 1) return isDay ? '⛅' : '☁️🌙';
+    if (code >= 80 && code <= 82) return '🌧️';
+    if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) return '❄️';
+    if (code >= 61 && code <= 67) return '🌧️';
+    if (code >= 51 && code <= 57) return '🌦️';
+    if (code == 45 || code == 48) return '🌫️';
+    if (code == 2 || code == 3) return '☁️';
+    if (code == 1) return isDay ? '⛅' : '☁️🌙';
     return isDay ? '☀️' : '🌙';
   }
 
   static String _weatherCodeToSummary(int code, {bool isDay = true}) {
     if (code >= 95) return 'Orages';
-    if (code >= 80) return 'Averses de pluie';
-    if (code >= 71) return 'Chutes de neige';
-    if (code >= 61) return 'Pluie continue';
-    if (code >= 51) return 'Bruine';
-    if (code >= 45) return 'Brouillard';
-    if (code >= 3) return 'Très nuageux';
-    if (code >= 1) return isDay ? 'Partiellement nuageux' : 'Nuit partiellement voilée';
-    return isDay ? 'Ciel dégagé et ensoleillé' : 'Nuit claire et étoilée';
+    if (code >= 80 && code <= 82) return 'Averses de pluie';
+    if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) return 'Chutes de neige';
+    if (code >= 61 && code <= 67) return 'Pluie';
+    if (code >= 51 && code <= 57) return 'Bruine';
+    if (code == 45 || code == 48) return 'Brouillard';
+    if (code == 3) return 'Très nuageux';
+    if (code == 2) return 'Nuageux';
+    if (code == 1) return isDay ? 'Éclaircies' : 'Nuit voilée';
+    return isDay ? 'Ensoleillé' : 'Nuit claire';
   }
 }

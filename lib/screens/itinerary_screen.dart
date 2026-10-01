@@ -52,6 +52,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
   LatLng? _liveUserPosition;
   StreamSubscription<Position>? _userPositionSub;
   Timer? _ambianceRefreshTimer;
+  Timer? _mapMoveDebounce;
 
   @override
   void initState() {
@@ -258,8 +259,26 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
     }
   }
 
+  void _onMapMovedDebounced(LatLng newCenter) {
+    _mapMoveDebounce?.cancel();
+    _mapMoveDebounce = Timer(const Duration(milliseconds: 650), () async {
+      if (!mounted) return;
+      final weatherList = await LiveWeatherService.instance.fetchWeather(
+        newCenter.latitude,
+        newCenter.longitude,
+      );
+      if (mounted && weatherList.isNotEmpty) {
+        setState(() {
+          _dynamicWeather = weatherList;
+          _currentCenter = newCenter;
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _mapMoveDebounce?.cancel();
     _ambianceRefreshTimer?.cancel();
     _userPositionSub?.cancel();
     _animatedMapController.dispose();
@@ -508,6 +527,11 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                 initialZoom: 13.5,
                 maxZoom: 18,
                 minZoom: 3,
+                onPositionChanged: (pos, hasGesture) {
+                  if (hasGesture) {
+                    _onMapMovedDebounced(pos.center);
+                  }
+                },
                 onTap: (_, __) {
                   setState(() {
                     _activePoiIndex = null;

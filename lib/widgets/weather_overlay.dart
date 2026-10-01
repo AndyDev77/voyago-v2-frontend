@@ -279,13 +279,24 @@ String getWeatherAiTip(DayWeather weather, [ThermalSensitivity? sensitivity]) {
 
   // Conditions météorologiques fortes
   if (code >= 95) return "Orage prévu ! Privilégiez les activités abritées.";
-  if (code >= 80) return "Fortes averses, imperméable et parapluie requis.";
-  if (code >= 61) return "Pluie continue, prévoyez un bon imperméable.";
-  if (code >= 71) {
+  if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) {
     return sens == ThermalSensitivity.cold
         ? "Chutes de neige ! Doudoune épaisse, gants et bonnet indispensables."
         : "Chutes de neige ! Habillez-vous chaudement.";
   }
+  if (code >= 80 && code <= 82) return "Averses soutenues, imperméable et parapluie requis.";
+  if (code >= 61 && code <= 67) {
+    if (sens == ThermalSensitivity.cold) {
+      return "Temps pluvieux et frais : Manteau imperméable et parapluie indispensables.";
+    } else if (sens == ThermalSensitivity.warm) {
+      return "Pluie continue : Coupe-vent imperméable et respirant avec parapluie.";
+    }
+    return "Pluie continue, prévoyez un bon imperméable et un parapluie.";
+  }
+  if (code >= 51 && code <= 57) {
+    return "Bruine passagère : Veste déperlante ou coupe-vent conseillé.";
+  }
+
 
   // Conseils vestimentaires hyper-personnalisés selon sensibilité thermique
   if (sens == ThermalSensitivity.cold) {
