@@ -873,7 +873,7 @@ class DestinationService {
         'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query)}&format=json&limit=6&addressdetails=1',
       );
       final res = await http.get(url, headers: {
-        'User-Agent': 'VoyagoApp/2.0 (contact@voyago.app)',
+        'User-Agent': 'VoyagoooApp/2.0 (contact@voyago.app)',
       }).timeout(const Duration(seconds: 4));
 
       if (res.statusCode == 200) {

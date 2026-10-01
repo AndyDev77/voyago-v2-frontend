@@ -89,7 +89,7 @@ class LiveWeatherService {
           'addressdetails': '1',
         },
         options: Options(
-          headers: {'User-Agent': 'VoyagoApp/1.0 (contact@voyago.com)'},
+          headers: {'User-Agent': 'VoyagoooApp/1.0 (contact@voyago.com)'},
         ),
       );
 
@@ -231,7 +231,7 @@ class LiveWeatherService {
           'zoom': '10',
         },
         options: Options(
-          headers: {'User-Agent': 'VoyagoApp/1.0 (contact@voyago.com)'},
+          headers: {'User-Agent': 'VoyagoooApp/1.0 (contact@voyago.com)'},
         ),
       );
       if (res.statusCode == 200 && res.data is Map) {
