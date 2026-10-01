@@ -920,7 +920,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                 TileLayer(
                   key: ValueKey('${ambiance.phase}_${ambiance.tileUrlTemplate}_$_forceDayMap'),
                   urlTemplate: ambiance.tileUrlTemplate,
-                  userAgentPackageName: 'com.voyago.app',
+                  userAgentPackageName: 'com.voyagooo.voyagooo',
                   tileProvider: _tileProvider,
                   maxNativeZoom: 19,
                   panBuffer: 1,
