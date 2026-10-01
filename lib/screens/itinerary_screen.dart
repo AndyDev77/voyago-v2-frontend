@@ -16,6 +16,7 @@ import '../providers/trips_provider.dart';
 import '../services/live_weather_service.dart';
 import '../services/map_ambiance_service.dart';
 import '../services/route_service.dart';
+import '../services/cached_tile_provider.dart';
 import '../theme.dart';
 import '../widgets/weather_overlay.dart';
 import '../widgets/itinerary_bottom_sheet.dart';
@@ -37,6 +38,8 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
     with TickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late final AnimatedMapController _animatedMapController;
+  // Cache disque des tuiles : affichage instantané des zones déjà visitées
+  final CachedTileProvider _tileProvider = CachedTileProvider();
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
 
@@ -790,6 +793,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                   key: ValueKey('${ambiance.phase}_${ambiance.tileUrlTemplate}_$_forceDayMap'),
                   urlTemplate: ambiance.tileUrlTemplate,
                   userAgentPackageName: 'com.voyago.app',
+                  tileProvider: _tileProvider,
                   maxNativeZoom: 19,
                   panBuffer: 1,
                   tileBuilder: (_forceDayMap || ambiance.tileColorFilter == null)
