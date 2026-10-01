@@ -33,10 +33,10 @@ class AppRatingService {
     if (!_initialized || !_rateMyApp.shouldOpenDialog || !context.mounted) return;
     await _rateMyApp.showRateDialog(
       context,
-      title: 'Tu aimes voyager avec Voyago ? 🦜',
+      title: 'Tu aimes voyager avec Voyagooo ? 🦜',
       message: 'Tes avis aident déjà les autres voyageurs. '
           'Une note sur le store nous aide à faire grandir la communauté !',
-      rateButton: 'NOTER VOYAGO',
+      rateButton: 'NOTER VOYAGOOO',
       noButton: 'NON MERCI',
       laterButton: 'PLUS TARD',
     );

@@ -1,4 +1,4 @@
-/// Étoiles agrégées d'un lieu, issues des avis des voyageurs Voyago.
+/// Étoiles agrégées d'un lieu, issues des avis des voyageurs Voyagooo.
 class PlaceStats {
   final String placeKey;
   final double? ratingAvg;

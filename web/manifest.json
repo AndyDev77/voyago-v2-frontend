@@ -1,11 +1,11 @@
 {
-    "name": "Voyago — Planificateur de voyage IA",
-    "short_name": "Voyago",
+    "name": "Voyagooo — Planificateur de voyage IA",
+    "short_name": "Voyagooo",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",
     "theme_color": "#1A1A2E",
-    "description": "Voyago — Planificateur de voyage personnalisé propulsé par l'IA",
+    "description": "Voyagooo — Planificateur de voyage personnalisé propulsé par l'IA",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

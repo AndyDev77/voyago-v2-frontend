@@ -165,7 +165,7 @@ class _ConfigureScreenState extends ConsumerState<ConfigureScreen> {
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (ctx) => const AuthBottomSheet(
-          title: 'Finalisez votre voyage avec Voyago ! 🦜',
+          title: 'Finalisez votre voyage avec Voyagooo ! 🦜',
           subtitle: 'Connectez-vous ou créez votre compte pour sauvegarder cet itinéraire sur votre profil.',
         ),
       );
@@ -982,7 +982,7 @@ class _TripGenerationLoaderState extends State<_TripGenerationLoader> {
       category: 'Finitions de l’Aventure',
       icon: Icons.flight_takeoff_rounded,
       color: Color(0xFF3B82F6),
-      text: 'Voyago assemble vos étapes dans un carnet de voyage dynamique et interactif...',
+      text: 'Voyagooo assemble vos étapes dans un carnet de voyage dynamique et interactif...',
     ),
   ];
 
@@ -1155,7 +1155,7 @@ class _TripGenerationLoaderState extends State<_TripGenerationLoader> {
 
               // Main Heading
               const Text(
-                'Voyago prépare votre aventure ! 🦜',
+                'Voyagooo prépare votre aventure ! 🦜',
                 style: TextStyle(
                   color: VoyagoColors.text,
                   fontSize: 22,

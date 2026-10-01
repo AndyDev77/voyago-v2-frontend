@@ -12,7 +12,7 @@ class AuthBottomSheet extends ConsumerStatefulWidget {
 
   const AuthBottomSheet({
     super.key,
-    this.title = 'Finalisez votre voyage avec Voyago ! 🦜',
+    this.title = 'Finalisez votre voyage avec Voyagooo ! 🦜',
     this.subtitle = 'Connectez-vous ou créez votre compte pour sauvegarder cet itinéraire sur votre profil.',
   });
 
@@ -131,7 +131,7 @@ class _AuthBottomSheetState extends ConsumerState<AuthBottomSheet>
                 ),
                 children: [
                   const TextSpan(
-                    text: 'Un compte Voyago existe déjà avec l\'adresse :\n',
+                    text: 'Un compte Voyagooo existe déjà avec l\'adresse :\n',
                   ),
                   TextSpan(
                     text: email,

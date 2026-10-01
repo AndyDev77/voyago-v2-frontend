@@ -60,7 +60,7 @@ class TravelerDrawer extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Voyago',
+                          'Voyagooo',
                           style: TextStyle(
                             color: VoyagoColors.text,
                             fontSize: 20,
@@ -227,7 +227,7 @@ class TravelerDrawer extends ConsumerWidget {
                   ),
                   _NavTile(
                     icon: Icons.workspace_premium_outlined,
-                    label: 'Voyago Pro',
+                    label: 'Voyagooo Pro',
                     badge: 'PRO',
                     onTap: () {
                       Navigator.of(context).pop();

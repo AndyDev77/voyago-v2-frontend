@@ -274,7 +274,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen>
               ),
               const SizedBox(width: 10),
               Text(
-                'Voyago',
+                'Voyagooo',
                 style: GoogleFonts.spaceGrotesk(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,

@@ -27,7 +27,7 @@ class VoyagoApp extends ConsumerWidget {
     return Sizer(
       builder: (context, orientation, deviceType) {
         return MaterialApp.router(
-          title: 'Voyago',
+          title: 'Voyagooo',
           theme: voyagoTheme,
           routerConfig: router,
           debugShowCheckedModeBanner: false,

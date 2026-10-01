@@ -94,7 +94,7 @@ class CommunityCircle {
 
     return CommunityCircle(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
-      name: json['name']?.toString() ?? 'Cercle Voyago',
+      name: json['name']?.toString() ?? 'Cercle Voyagooo',
       slug: json['slug']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       avatarEmoji: json['avatar_emoji']?.toString() ?? '🧭',

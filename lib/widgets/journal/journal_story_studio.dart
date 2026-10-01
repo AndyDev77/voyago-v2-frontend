@@ -72,7 +72,7 @@ class _StoryStudioSheetState extends ConsumerState<_StoryStudioSheet> {
       await file.writeAsBytes(png);
       await SharePlus.instance.share(ShareParams(
         files: [XFile(file.path, mimeType: 'image/png')],
-        text: '${_j.shortDestination} : ${_j.durationDays} jours inoubliables avec Voyago 🦜',
+        text: '${_j.shortDestination} : ${_j.durationDays} jours inoubliables avec Voyagooo 🦜',
         sharePositionOrigin: _shareOrigin(),
       ));
     });
@@ -224,7 +224,7 @@ class _StoryStudioSheetState extends ConsumerState<_StoryStudioSheet> {
               _SecondaryAction(
                 icon: _shared ? Icons.check_circle_rounded : Icons.groups_rounded,
                 color: VoyagoColors.primary,
-                label: _shared ? 'Partagé à la communauté Voyago' : 'Partager à la communauté (+5 XP)',
+                label: _shared ? 'Partagé à la communauté Voyagooo' : 'Partager à la communauté (+5 XP)',
                 loading: _busy == 'community',
                 onTap: _shared ? null : _shareToCommunity,
               ),
@@ -246,7 +246,7 @@ class JournalStoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = journal.stats;
-    final name = user?.pseudo?.isNotEmpty == true ? user!.pseudo! : (user?.name ?? 'Voyageur Voyago');
+    final name = user?.pseudo?.isNotEmpty == true ? user!.pseudo! : (user?.name ?? 'Voyageur Voyagooo');
 
     return Stack(
       fit: StackFit.expand,
@@ -298,7 +298,7 @@ class JournalStoryCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(color: VoyagoColors.text, fontSize: 12, fontWeight: FontWeight.w800)),
-                        const Text('Journal Voyago', style: TextStyle(color: VoyagoColors.yellow, fontSize: 9.5)),
+                        const Text('Journal Voyagooo', style: TextStyle(color: VoyagoColors.yellow, fontSize: 9.5)),
                       ],
                     ),
                   ),
@@ -522,7 +522,7 @@ String _pdfSafe(String input) {
 }
 
 Future<Uint8List> _buildPdf(JournalDetail j, Uint8List? storyPng) async {
-  final doc = pw.Document(title: 'Journal de voyage — ${j.shortDestination}', author: 'Voyago');
+  final doc = pw.Document(title: 'Journal de voyage — ${j.shortDestination}', author: 'Voyagooo');
   const green = PdfColor.fromInt(0xFF58CC02);
   const muted = PdfColor.fromInt(0xFF6B6B7B);
   final s = j.stats;
@@ -539,7 +539,7 @@ Future<Uint8List> _buildPdf(JournalDetail j, Uint8List? storyPng) async {
     margin: const pw.EdgeInsets.fromLTRB(40, 40, 40, 40),
     footer: (ctx) => pw.Align(
       alignment: pw.Alignment.centerRight,
-      child: pw.Text('Voyago - ${ctx.pageNumber}/${ctx.pagesCount}', style: const pw.TextStyle(fontSize: 9, color: muted)),
+      child: pw.Text('Voyagooo - ${ctx.pageNumber}/${ctx.pagesCount}', style: const pw.TextStyle(fontSize: 9, color: muted)),
     ),
     build: (_) => [
       pw.Text(_pdfSafe('Journal de voyage'), style: pw.TextStyle(fontSize: 11, color: green, fontWeight: pw.FontWeight.bold)),

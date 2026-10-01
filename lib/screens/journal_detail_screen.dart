@@ -710,7 +710,7 @@ class _FooterActionsState extends ConsumerState<_FooterActions> {
             ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: VoyagoColors.blue))
             : Icon(shared ? Icons.check_circle_rounded : Icons.groups_rounded, size: 19),
         label: Text(
-          shared ? 'Partagé à la communauté Voyago' : 'Partager à la communauté (+5 XP)',
+          shared ? 'Partagé à la communauté Voyagooo' : 'Partager à la communauté (+5 XP)',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         style: OutlinedButton.styleFrom(

@@ -67,7 +67,7 @@ class CommunityApi {
   }
 
   // =========================================================================
-  // 2. CERCLES & COMMUNAUTÉS VOYAGO (NOUVELLE EXPÉRIENCE IMMERSIVE)
+  // 2. CERCLES & COMMUNAUTÉS VOYAGOOO (NOUVELLE EXPÉRIENCE IMMERSIVE)
   // =========================================================================
 
   /// Récupération des cercles/tribus avec filtres

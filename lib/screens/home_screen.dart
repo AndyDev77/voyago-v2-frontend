@@ -140,7 +140,7 @@ class HomeScreen extends ConsumerWidget {
                             const Icon(Icons.tune_rounded, size: 14, color: VoyagoColors.primary),
                             const SizedBox(width: 4),
                             Text(
-                              'Voyago 2.0',
+                              'Voyagooo 2.0',
                               style: TextStyle(
                                 color: VoyagoColors.primary,
                                 fontSize: 10.sp.clamp(11.0, 12.0),
@@ -186,7 +186,7 @@ class HomeScreen extends ConsumerWidget {
                       Expanded(
                         child: _ExplorerCard(
                           icon: Icons.diamond_rounded,
-                          title: 'Voyago Pro',
+                          title: 'Voyagooo Pro',
                           subtitle: 'IA illimitée & exclusivités',
                           badge: 'VIP',
                           color: VoyagoColors.primary,
@@ -311,7 +311,7 @@ class _HeaderSection extends ConsumerWidget {
           ),
         ),
 
-        // Logo Voyago ou Bouton Connexion
+        // Logo Voyagooo ou Bouton Connexion
         if (user != null)
           Container(
             padding: EdgeInsets.symmetric(
@@ -336,7 +336,7 @@ class _HeaderSection extends ConsumerWidget {
                 ),
                 const SizedBox(width: 5),
                 Text(
-                  'Voyago',
+                  'Voyagooo',
                   style: TextStyle(
                     color: VoyagoColors.primary,
                     fontWeight: FontWeight.w800,

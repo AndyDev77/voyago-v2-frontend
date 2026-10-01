@@ -75,7 +75,7 @@ class ApiException implements Exception {
             return ConflictException(
               message: extractedMessage.toLowerCase().contains('already') ||
                       extractedMessage.toLowerCase().contains('existe')
-                  ? 'Cette adresse email est déjà associée à un compte Voyago.'
+                  ? 'Cette adresse email est déjà associée à un compte Voyagooo.'
                   : extractedMessage,
               statusCode: 409,
             );
@@ -91,7 +91,7 @@ class ApiException implements Exception {
 
       case DioExceptionType.connectionError:
         return NetworkException(
-          message: 'Impossible de joindre le serveur Voyago. Vérifiez que le backend est bien démarré sur le port 3333.',
+          message: 'Impossible de joindre le serveur Voyagooo. Vérifiez que le backend est bien démarré sur le port 3333.',
         );
 
       case DioExceptionType.cancel:

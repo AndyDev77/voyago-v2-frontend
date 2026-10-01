@@ -309,7 +309,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Personnalisez votre apparence sur Voyago',
+              'Personnalisez votre apparence sur Voyagooo',
               style: TextStyle(color: VoyagoColors.muted, fontSize: 13),
             ),
             const SizedBox(height: 20),
@@ -429,7 +429,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Se déconnecter ?', style: TextStyle(color: VoyagoColors.text)),
         content: const Text(
-          'Voulez-vous vraiment vous déconnecter de votre compte Voyago ?',
+          'Voulez-vous vraiment vous déconnecter de votre compte Voyagooo ?',
           style: TextStyle(color: VoyagoColors.muted),
         ),
         actions: [
@@ -484,7 +484,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
                 const Icon(Icons.workspace_premium, color: _ProfileColors.gold, size: 24),
                 const SizedBox(width: 8),
                 Text(
-                  'Passeport d\'Explorateur Voyago',
+                  'Passeport d\'Explorateur Voyagooo',
                   style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -585,12 +585,12 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
                   child: OutlinedButton.icon(
                     onPressed: () {
                       Clipboard.setData(ClipboardData(
-                        text: '🌍 Passeport Voyago de ${user.displayName} :\n'
+                        text: '🌍 Passeport Voyagooo de ${user.displayName} :\n'
                             '⭐ Niveau ${profile.level} (${profile.xp} XP)\n'
                             '✈️ ${trips.length} voyage(s) créé(s) ($distance km parcourus)\n'
                             '🔥 Série active de ${profile.streak} jour(s)\n'
                             '${profile.xp > 0 ? "🏆 Rang mondial : #$globalRank\n" : ""}'
-                            'Téléchargez Voyago et partez à l\'aventure !',
+                            'Téléchargez Voyagooo et partez à l\'aventure !',
                       ));
                       Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -785,7 +785,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
 
             const SizedBox(height: 24),
 
-            // Upgrade Pass / Voyago Pro Banner
+            // Upgrade Pass / Voyagooo Pro Banner
             _buildUpgradeCard(user),
 
             const SizedBox(height: 32),
@@ -1001,7 +1001,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          user.isPro ? 'Voyago Pro' : 'Explorer Plus',
+                          user.isPro ? 'Voyagooo Pro' : 'Explorer Plus',
                           style: TextStyle(
                             color: user.isPro ? VoyagoColors.blue : _ProfileColors.gold,
                             fontSize: 11,
@@ -1333,7 +1333,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
         'title': 'Globe-trotter',
         'tier': 'Tier 2',
         'emoji': '🌍',
-        'description': 'A planifié au moins 5 voyages avec Voyago.',
+        'description': 'A planifié au moins 5 voyages avec Voyagooo.',
       },
       {
         'id': 'explorateur',
@@ -1351,10 +1351,10 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
       },
       {
         'id': 'voyago_pro',
-        'title': 'Voyago Pro',
+        'title': 'Voyagooo Pro',
         'tier': 'Tier 3',
         'emoji': '💎',
-        'description': 'Membre du club exclusif Voyago Pro.',
+        'description': 'Membre du club exclusif Voyagooo Pro.',
       },
     ];
 
@@ -1708,7 +1708,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          'Aucun voyage n\'a encore été généré. Dès votre premier itinéraire, Voyago calculera en temps réel vos pourcentages d\'affinités à partir de vos choix réels.',
+                          'Aucun voyage n\'a encore été généré. Dès votre premier itinéraire, Voyagooo calculera en temps réel vos pourcentages d\'affinités à partir de vos choix réels.',
                           style: TextStyle(color: VoyagoColors.muted, fontSize: 12, height: 1.3),
                         ),
                         const SizedBox(height: 10),
@@ -1871,7 +1871,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
                         title: const Text('Profil Thermique IA',
                             style: TextStyle(color: Colors.white)),
                         content: Text(
-                          'Voyago adapte automatiquement les itinéraires, les créneaux d\'activités en extérieur et le contenu de votre valise selon votre sensibilité thermique (${user.thermalSensitivity.labelFr}).',
+                          'Voyagooo adapte automatiquement les itinéraires, les créneaux d\'activités en extérieur et le contenu de votre valise selon votre sensibilité thermique (${user.thermalSensitivity.labelFr}).',
                           style: const TextStyle(color: VoyagoColors.muted),
                         ),
                         actions: [
@@ -1979,7 +1979,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
     }
   }
 
-  // --- CARTE UPGRADE VOYAGO PRO (UNLIMITED DISCOVERY) ---
+  // --- CARTE UPGRADE VOYAGOOO PRO (UNLIMITED DISCOVERY) ---
   Widget _buildUpgradeCard(AuthUser user) {
     return Container(
       width: double.infinity,
@@ -2010,7 +2010,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                user.isPro ? 'Voyago Pro Actif' : 'Découverte Illimitée',
+                user.isPro ? 'Voyagooo Pro Actif' : 'Découverte Illimitée',
                 style: const TextStyle(
                   color: Color(0xFF0A0A0F),
                   fontSize: 20,
@@ -2127,7 +2127,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Lancez l\'IA Voyago pour concevoir votre premier itinéraire personnalisé !',
+                      'Lancez l\'IA Voyagooo pour concevoir votre premier itinéraire personnalisé !',
                       style: TextStyle(color: VoyagoColors.muted, fontSize: 13),
                       textAlign: TextAlign.center,
                     ),

@@ -158,7 +158,7 @@ class _PublicUserScreenState extends ConsumerState<PublicUserScreen> {
                         const Text('💎', style: TextStyle(fontSize: 14)),
                         const SizedBox(width: 6),
                         Text(
-                          'Voyago Pro${proTier != null ? ' · $proTier' : ''}',
+                          'Voyagooo Pro${proTier != null ? ' · $proTier' : ''}',
                           style: const TextStyle(
                             color: VoyagoColors.blue,
                             fontSize: 13,

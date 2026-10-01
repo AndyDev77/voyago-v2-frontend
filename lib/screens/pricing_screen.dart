@@ -181,7 +181,7 @@ class _PricingScreenState extends ConsumerState<PricingScreen> {
           children: [
             Text('💎', style: TextStyle(fontSize: 20)),
             SizedBox(width: 8),
-            Text('Voyago Pro'),
+            Text('Voyagooo Pro'),
           ],
         ),
       ),
@@ -222,7 +222,7 @@ class _PricingScreenState extends ConsumerState<PricingScreen> {
             const SizedBox(height: 12),
             Text(
               isSuccess
-                  ? 'Bienvenue dans Voyago Pro ! Profitez de tous les avantages premium.'
+                  ? 'Bienvenue dans Voyagooo Pro ! Profitez de tous les avantages premium.'
                   : isPending
                       ? 'Votre paiement est en cours de traitement. Nous vous contacterons par email.'
                       : 'Votre paiement a été annulé. Vous pouvez réessayer quand vous le souhaitez.',
@@ -262,7 +262,7 @@ class _PricingScreenState extends ConsumerState<PricingScreen> {
                 const Text('💎', style: TextStyle(fontSize: 56)),
                 const SizedBox(height: 16),
                 const Text(
-                  'Passez à Voyago Pro',
+                  'Passez à Voyagooo Pro',
                   style: TextStyle(
                     color: VoyagoColors.text,
                     fontSize: 26,

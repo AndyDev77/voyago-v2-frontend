@@ -96,7 +96,7 @@ class FormValidators {
       }
       final ageYears = now.year - dob.year - (now.month > dob.month || (now.month == dob.month && now.day >= dob.day) ? 0 : 1);
       if (ageYears < 13) {
-        return 'Vous devez avoir au moins 13 ans pour utiliser Voyago 🦜';
+        return 'Vous devez avoir au moins 13 ans pour utiliser Voyagooo 🦜';
       }
       if (ageYears > 120) {
         return 'Date de naissance invalide';

@@ -71,7 +71,7 @@ class TripGeneratorNotifier extends StateNotifier<TripGeneratorState> {
   }) async {
     state = const TripGeneratorState(
       isGenerating: true,
-      progressMessage: 'Voyago 🦜 analyse vos envies de voyage...',
+      progressMessage: 'Voyagooo 🦜 analyse vos envies de voyage...',
     );
 
     try {

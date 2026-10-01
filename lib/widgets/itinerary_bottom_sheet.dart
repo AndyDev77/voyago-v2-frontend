@@ -505,7 +505,7 @@ class _TimelinePOI extends StatelessWidget {
   /// Icône du mode de déplacement principal (bouton « Y aller »).
   final IconData navigateIcon;
 
-  /// Étoiles des voyageurs Voyago (null tant qu'elles ne sont pas chargées).
+  /// Étoiles des voyageurs Voyagooo (null tant qu'elles ne sont pas chargées).
   final PlaceStats? stats;
 
   /// Ouvre la notation du lieu.
@@ -655,7 +655,7 @@ class _TimelinePOI extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 4),
 
-                                    // Étoiles : avis réels des voyageurs Voyago, sinon note estimée par l'IA
+                                    // Étoiles : avis réels des voyageurs Voyagooo, sinon note estimée par l'IA
                                     _PlaceRatingRow(poi: poi, stats: stats, onRate: onRate),
                                     const SizedBox(height: 4),
 
@@ -853,7 +853,7 @@ class _TimelinePOI extends StatelessWidget {
   }
 }
 
-/// Rangée d'étoiles d'un lieu. Les avis des voyageurs Voyago priment sur la note
+/// Rangée d'étoiles d'un lieu. Les avis des voyageurs Voyagooo priment sur la note
 /// estimée par l'IA ; un toucher ouvre la notation.
 class _PlaceRatingRow extends StatelessWidget {
   final POI poi;

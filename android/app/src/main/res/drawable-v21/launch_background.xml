@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Launch splash screen with Voyago logo (API 21+) -->
+<!-- Launch splash screen with Voyagooo logo (API 21+) -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="?android:colorBackground" />
 

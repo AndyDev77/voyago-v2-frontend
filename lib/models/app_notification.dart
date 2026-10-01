@@ -1,4 +1,4 @@
-/// Notification Voyago (cloche) : arrivée sur un lieu, itinéraire prêt, etc.
+/// Notification Voyagooo (cloche) : arrivée sur un lieu, itinéraire prêt, etc.
 class AppNotification {
   final String id;
   final String type;

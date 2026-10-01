@@ -57,7 +57,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
               errorBuilder: (_, __, ___) => const Text('🦜', style: TextStyle(fontSize: 20)),
             ),
             const SizedBox(width: 8),
-            const Text('Voyago'),
+            const Text('Voyagooo'),
           ],
         ),
         bottom: TabBar(
@@ -339,7 +339,7 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
                 ),
                 children: [
                   const TextSpan(
-                    text: 'Un compte Voyago existe déjà avec l\'adresse :\n',
+                    text: 'Un compte Voyagooo existe déjà avec l\'adresse :\n',
                   ),
                   TextSpan(
                     text: email,
@@ -494,7 +494,7 @@ class _SignupTabState extends ConsumerState<_SignupTab> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Rejoins des milliers de voyageurs avec Voyago 🦜',
+              'Rejoins des milliers de voyageurs avec Voyagooo 🦜',
               style: TextStyle(color: VoyagoColors.muted, fontSize: 14),
             ),
             const SizedBox(height: 32),

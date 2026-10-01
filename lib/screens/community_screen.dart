@@ -109,7 +109,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen>
           children: [
             Text('🦜', style: TextStyle(fontSize: 20)),
             SizedBox(width: 8),
-            Text('Communauté Voyago'),
+            Text('Communauté Voyagooo'),
           ],
         ),
         actions: [
@@ -178,7 +178,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen>
   }
 
   // =========================================================================
-  // TAB 1: TRIBUS & CERCLES (NOUVELLE EXPÉRIENCE DE COMMUNAUTÉ VOYAGO)
+  // TAB 1: TRIBUS & CERCLES (NOUVELLE EXPÉRIENCE DE COMMUNAUTÉ VOYAGOOO)
   // =========================================================================
 
   Widget _buildCirclesTab() {
@@ -428,7 +428,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen>
                     ),
                     SizedBox(height: 8),
                     Text(
-                      'Soyez le premier explorateur à partager votre aventure avec Voyago !',
+                      'Soyez le premier explorateur à partager votre aventure avec Voyagooo !',
                       style: TextStyle(color: VoyagoColors.muted),
                       textAlign: TextAlign.center,
                     ),

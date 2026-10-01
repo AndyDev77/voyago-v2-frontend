@@ -1,6 +1,6 @@
-# 🦜 Voyago — Frontend Flutter
+# 🦜 Voyagooo — Frontend Flutter
 
-> Application mobile **Voyago** — planification de voyage gamifiée. Construite avec **Flutter + Riverpod + flutter_map**.
+> Application mobile **Voyagooo** — planification de voyage gamifiée. Construite avec **Flutter + Riverpod + flutter_map**.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3-02569B?logo=flutter)](https://flutter.dev/)
 [![Dart](https://img.shields.io/badge/Dart-3-0175C2?logo=dart)](https://dart.dev/)
@@ -23,12 +23,12 @@
 
 ## 💡 Concept
 
-**Voyago** transforme la planification de voyage en jeu :
+**Voyagooo** transforme la planification de voyage en jeu :
 - 🃏 Swipe Tinder pour choisir tes envies
 - 🤖 IA Claude génère un itinéraire personnalisé avec GPS, photos et météo
 - 🏆 Gagne des XP, monte de niveau, débloque des badges
 - 👥 Partage tes voyages avec la communauté
-- 💎 Voyago Pro pour les voyageurs sérieux
+- 💎 Voyagooo Pro pour les voyageurs sérieux
 
 ---
 
@@ -54,7 +54,7 @@
 lib/
 ├── main.dart           # Point d'entrée, initialisation
 ├── router.dart         # GoRouter — 16 routes
-├── theme.dart          # ThemeData Voyago (dark, #58CC02)
+├── theme.dart          # ThemeData Voyagooo (dark, #58CC02)
 ├── models/             # Dart models avec fromJson/toJson
 │   ├── auth_user.dart
 │   ├── trip.dart
@@ -88,7 +88,7 @@ lib/
 | Swipe | `/swipe` | Sélection Tinder des intérêts |
 | Configure | `/configure` | Paramètres du voyage |
 | Itinéraire | `/itinerary/:tripId` | Carte + POIs + météo |
-| Pricing | `/pricing` | Offres Voyago Pro |
+| Pricing | `/pricing` | Offres Voyagooo Pro |
 | Profil | `/profile` | Profil, XP, badges, voyages |
 | Communauté | `/community` | Feed public |
 | Récompenses XP | `/xp-rewards` | Système de niveaux |
@@ -102,7 +102,7 @@ lib/
 ### Prérequis
 - Flutter SDK 3.x
 - Android Studio (émulateur) ou Xcode (iOS)
-- Backend Voyago lancé sur port 3333
+- Backend Voyagooo lancé sur port 3333
 
 ### Étapes
 
@@ -172,7 +172,7 @@ flutter build ios --release
 
 | Élément | Valeur |
 |---|---|
-| Couleur primaire | `#58CC02` (Voyago Green) |
+| Couleur primaire | `#58CC02` (Voyagooo Green) |
 | Fond | `#0F1117` (dark) |
 | Surface | `#1A1D27` |
 | Texte | `#FFFFFF` |
@@ -185,8 +185,8 @@ flutter build ios --release
 ## 🗺 Cartes
 
 L'app utilise **flutter_map** avec les tuiles **OpenStreetMap** — aucune clé API requise.
-Les marqueurs POI sont numérotés avec la couleur Voyago Green (`#58CC02`).
+Les marqueurs POI sont numérotés avec la couleur Voyagooo Green (`#58CC02`).
 
 ---
 
-*Voyago — Voyage. Joue. Découvre. 🦜*
+*Voyagooo — Voyage. Joue. Découvre. 🦜*

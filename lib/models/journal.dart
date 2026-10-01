@@ -57,7 +57,7 @@ class JournalBadge {
   const JournalBadge({required this.title, required this.icon});
 
   factory JournalBadge.fromJson(Map<String, dynamic>? j) => JournalBadge(
-        title: j?['title']?.toString() ?? 'Explorateur Voyago',
+        title: j?['title']?.toString() ?? 'Explorateur Voyagooo',
         icon: j?['icon']?.toString() ?? 'explore',
       );
 }

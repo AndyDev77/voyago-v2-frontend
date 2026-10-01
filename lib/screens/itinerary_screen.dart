@@ -499,7 +499,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
               const SizedBox(height: 16),
               _NavOption(
                 icon: Icons.directions_walk,
-                label: 'Suivre sur Voyago',
+                label: 'Suivre sur Voyagooo',
                 subtitle: 'Itinéraire affiché sur la carte',
                 onTap: () => Navigator.pop(ctx),
               ),
