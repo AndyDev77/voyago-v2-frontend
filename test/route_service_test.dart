@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:voyago/services/route_service.dart';
+import 'package:voyagooo/services/route_service.dart';
 
 void main() {
   group('TravelMode.forTrip', () {

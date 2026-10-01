@@ -8,7 +8,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:voyago/main.dart';
+import 'package:voyagooo/main.dart';
 
 void main() {
   testWidgets('VoyagoApp smoke test', (WidgetTester tester) async {

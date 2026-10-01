@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:voyago/models/place_stats.dart';
-import 'package:voyago/models/poi.dart';
-import 'package:voyago/providers/auth_provider.dart';
-import 'package:voyago/providers/notifications_provider.dart';
-import 'package:voyago/providers/place_stats_provider.dart';
-import 'package:voyago/widgets/itinerary_bottom_sheet.dart';
-import 'package:voyago/widgets/notification_bell.dart';
+import 'package:voyagooo/models/place_stats.dart';
+import 'package:voyagooo/models/poi.dart';
+import 'package:voyagooo/providers/auth_provider.dart';
+import 'package:voyagooo/providers/notifications_provider.dart';
+import 'package:voyagooo/providers/place_stats_provider.dart';
+import 'package:voyagooo/widgets/itinerary_bottom_sheet.dart';
+import 'package:voyagooo/widgets/notification_bell.dart';
 
 /// Étoiles injectées sans réseau.
 class _FakePlaceStats extends PlaceStatsNotifier {

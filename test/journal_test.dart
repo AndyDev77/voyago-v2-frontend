@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:voyago/models/journal.dart';
-import 'package:voyago/models/trip.dart';
-import 'package:voyago/providers/auth_provider.dart';
-import 'package:voyago/providers/journal_provider.dart';
-import 'package:voyago/screens/journal_detail_screen.dart';
-import 'package:voyago/screens/journal_screen.dart';
-import 'package:voyago/widgets/journal/journal_story_studio.dart';
+import 'package:voyagooo/models/journal.dart';
+import 'package:voyagooo/models/trip.dart';
+import 'package:voyagooo/providers/auth_provider.dart';
+import 'package:voyagooo/providers/journal_provider.dart';
+import 'package:voyagooo/screens/journal_detail_screen.dart';
+import 'package:voyagooo/screens/journal_screen.dart';
+import 'package:voyagooo/widgets/journal/journal_story_studio.dart';
 
 Trip _trip({String? start, String? end, int days = 2, DateTime? completedAt}) => Trip(
       id: 't',
