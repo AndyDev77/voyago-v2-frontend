@@ -123,12 +123,9 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen>
 
   void _onStart() {
     _videoController?.pause();
-    final authState = ref.read(authProvider);
-    if (authState.user != null) {
-      context.go('/');
-    } else {
-      context.go('/auth');
-    }
+    // Connecté ou non, la bienvenue mène à l'accueil : il gère le mode invité
+    // (bannière de connexion) et l'onboarding est imposé par le routeur.
+    context.go('/');
   }
 
   void _onSkip() {
