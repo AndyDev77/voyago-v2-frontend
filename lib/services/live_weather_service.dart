@@ -38,6 +38,7 @@ class LiveWeatherService {
   );
 
   final Map<String, _CachedWeather> _cache = {};
+  final Map<String, String> _reverseGeocodeCache = {};
 
   String _cacheKey(double lat, double lng) =>
       '${lat.toStringAsFixed(2)}_${lng.toStringAsFixed(2)}';
@@ -203,8 +204,23 @@ class LiveWeatherService {
     ];
   }
 
-  /// Reverse geocodes latitude/longitude into City / Country name
+  /// Reverse geocodes latitude/longitude into City / Country name with caching
   Future<String?> reverseGeocode(double lat, double lng) async {
+    final key = '${lat.toStringAsFixed(2)}_${lng.toStringAsFixed(2)}';
+    if (_reverseGeocodeCache.containsKey(key)) {
+      return _reverseGeocodeCache[key];
+    }
+
+    // Check presets if within ~15km
+    for (final preset in _presetCities) {
+      final dLat = (preset.lat - lat).abs();
+      final dLng = (preset.lng - lng).abs();
+      if (dLat < 0.12 && dLng < 0.12) {
+        _reverseGeocodeCache[key] = preset.displayName;
+        return preset.displayName;
+      }
+    }
+
     try {
       final res = await _dio.get(
         'https://nominatim.openstreetmap.org/reverse',
@@ -221,18 +237,23 @@ class LiveWeatherService {
       if (res.statusCode == 200 && res.data is Map) {
         final data = res.data as Map;
         final address = data['address'] as Map?;
+        String? result;
         if (address != null) {
-          final city = address['city'] ?? address['town'] ?? address['village'] ?? address['county'];
+          final city = address['city'] ?? address['town'] ?? address['village'] ?? address['municipality'] ?? address['county'];
           final country = address['country'];
           if (city != null && country != null) {
-            return '$city, $country';
+            result = '$city, $country';
           } else if (city != null) {
-            return city.toString();
+            result = city.toString();
           }
         }
         final displayName = data['display_name'] as String?;
-        if (displayName != null) {
-          return displayName.split(',').take(2).join(', ');
+        if (result == null && displayName != null) {
+          result = displayName.split(',').take(2).join(', ').trim();
+        }
+        if (result != null) {
+          _reverseGeocodeCache[key] = result;
+          return result;
         }
       }
     } catch (_) {}

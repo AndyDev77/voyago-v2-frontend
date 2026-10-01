@@ -53,6 +53,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
   StreamSubscription<Position>? _userPositionSub;
   Timer? _ambianceRefreshTimer;
   Timer? _mapMoveDebounce;
+  LatLng? _lastWeatherFetchCenter;
 
   @override
   void initState() {
@@ -223,21 +224,27 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
     double lng, {
     bool autoUpdateCity = false,
   }) async {
-    final weatherList = await LiveWeatherService.instance.fetchWeather(lat, lng);
+    final results = await Future.wait([
+      LiveWeatherService.instance.fetchWeather(lat, lng),
+      if (autoUpdateCity)
+        LiveWeatherService.instance.reverseGeocode(lat, lng)
+      else
+        Future.value(null),
+    ]);
+    final weatherList = results[0] as List<DayWeather>;
+    final city = results[1] as String?;
+
     if (!mounted) return;
     setState(() {
-      _dynamicWeather = weatherList;
-      _showWeatherCard = true;
-    });
-
-    if (autoUpdateCity) {
-      final city = await LiveWeatherService.instance.reverseGeocode(lat, lng);
-      if (city != null && city.isNotEmpty && mounted) {
-        setState(() {
-          _activeCityName = city;
-        });
+      if (weatherList.isNotEmpty) {
+        _dynamicWeather = weatherList;
+        _showWeatherCard = true;
       }
-    }
+      if (city != null && city.isNotEmpty) {
+        _activeCityName = city.split(',').first.trim();
+        _searchCtrl.text = city;
+      }
+    });
   }
 
   Future<void> _bootstrapLiveWeather() async {
@@ -261,18 +268,47 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
 
   void _onMapMovedDebounced(LatLng newCenter) {
     _mapMoveDebounce?.cancel();
-    _mapMoveDebounce = Timer(const Duration(milliseconds: 650), () async {
+    _mapMoveDebounce = Timer(const Duration(milliseconds: 550), () async {
       if (!mounted) return;
-      final weatherList = await LiveWeatherService.instance.fetchWeather(
-        newCenter.latitude,
-        newCenter.longitude,
-      );
-      if (mounted && weatherList.isNotEmpty) {
-        setState(() {
-          _dynamicWeather = weatherList;
-          _currentCenter = newCenter;
-        });
+
+      // Seuil de distance : évite les requêtes inutiles lors de micro-mouvements (< 4.5 km)
+      if (_lastWeatherFetchCenter != null) {
+        final dLat = (newCenter.latitude - _lastWeatherFetchCenter!.latitude).abs();
+        final dLng = (newCenter.longitude - _lastWeatherFetchCenter!.longitude).abs();
+        if (dLat < 0.04 && dLng < 0.04) {
+          return;
+        }
       }
+
+      _lastWeatherFetchCenter = newCenter;
+
+      // Exécution parallèle pour performance maximale et synchronisation simultanée
+      final results = await Future.wait([
+        LiveWeatherService.instance.fetchWeather(
+          newCenter.latitude,
+          newCenter.longitude,
+        ),
+        LiveWeatherService.instance.reverseGeocode(
+          newCenter.latitude,
+          newCenter.longitude,
+        ),
+      ]);
+
+      final weatherList = results[0] as List<DayWeather>;
+      final detectedCity = results[1] as String?;
+
+      if (!mounted) return;
+      setState(() {
+        _currentCenter = newCenter;
+        if (weatherList.isNotEmpty) {
+          _dynamicWeather = weatherList;
+          _showWeatherCard = true;
+        }
+        if (detectedCity != null && detectedCity.isNotEmpty) {
+          _activeCityName = detectedCity.split(',').first.trim();
+          _searchCtrl.text = detectedCity;
+        }
+      });
     });
   }
 
@@ -307,6 +343,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
 
   Future<void> _selectCity(CityLocation city) async {
     final target = LatLng(city.lat, city.lng);
+    _lastWeatherFetchCenter = target;
     setState(() {
       _currentCenter = target;
       _activeCityName = city.name;
@@ -330,9 +367,19 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.wb_sunny, color: Colors.amber, size: 18),
+              Text(
+                weatherList.isNotEmpty ? weatherList.first.icon : '🌤️',
+                style: const TextStyle(fontSize: 16),
+              ),
               const SizedBox(width: 8),
-              Text('Météo actualisée pour ${city.name}'),
+              Expanded(
+                child: Text(
+                  weatherList.isNotEmpty
+                      ? '${city.name} · ${weatherList.first.summary} ${weatherList.first.tempMax.round()}°C'
+                      : 'Météo actualisée pour ${city.name}',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
           duration: const Duration(seconds: 2),
@@ -857,6 +904,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
               right: 0,
               child: WeatherOverlay(
                 weather: activeWeather,
+                cityName: _activeCityName,
                 dayNumber: _selectedDay,
                 ambianceLabel: ambiance.phaseLabel,
                 ambianceIcon: ambiance.phaseIcon,
@@ -902,6 +950,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                   onTap: () async {
                     setState(() => _forceDayMap = false); // Rétablit l'ambiance réelle de la position utilisateur
                     if (_liveUserPosition != null) {
+                      _lastWeatherFetchCenter = _liveUserPosition;
                       _animatedMapController.animateTo(
                         dest: _liveUserPosition!,
                         zoom: 16.0,
@@ -909,6 +958,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                       _updateWeatherForPosition(
                         _liveUserPosition!.latitude,
                         _liveUserPosition!.longitude,
+                        autoUpdateCity: true,
                       );
                       _showSafeSnackBar(
                         const SnackBar(

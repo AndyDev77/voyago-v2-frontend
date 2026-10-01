@@ -9,6 +9,7 @@ import '../theme.dart';
 class WeatherOverlay extends StatefulWidget {
   final DayWeather weather;
   final String? aiTip;
+  final String? cityName;
   final int dayNumber;
   final String? ambianceLabel;
   final IconData? ambianceIcon;
@@ -20,6 +21,7 @@ class WeatherOverlay extends StatefulWidget {
     super.key,
     required this.weather,
     this.aiTip,
+    this.cityName,
     this.dayNumber = 1,
     this.ambianceLabel,
     this.ambianceIcon,
@@ -62,6 +64,26 @@ class _WeatherOverlayState extends State<WeatherOverlay> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (widget.cityName != null && widget.cityName!.isNotEmpty) ...[
+                  Text(
+                    widget.cityName!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    width: 3,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
                 Text(
                   widget.weather.icon,
                   style: const TextStyle(fontSize: 16),
@@ -178,6 +200,28 @@ class _WeatherOverlayState extends State<WeatherOverlay> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (widget.cityName != null && widget.cityName!.isNotEmpty) ...[
+                          const Icon(Icons.location_on, size: 11, color: VoyagoColors.primary),
+                          const SizedBox(width: 2),
+                          Text(
+                            widget.cityName!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Container(
+                            width: 2.5,
+                            height: 2.5,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.5),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                        ],
                         if (widget.ambianceIcon != null) ...[
                           Icon(
                             widget.ambianceIcon,
@@ -272,54 +316,78 @@ class _WeatherOverlayState extends State<WeatherOverlay> {
   }
 }
 
-/// Conseils météo IA personnalisés adaptés à la sensibilité thermique
+/// Conseils météo IA personnalisés adaptés à la météo exacte et à la sensibilité thermique
 String getWeatherAiTip(DayWeather weather, [ThermalSensitivity? sensitivity]) {
   final code = weather.weatherCode;
   final sens = sensitivity ?? ThermalSensitivity.balanced;
+  final temp = weather.tempMax.round();
 
-  // Conditions météorologiques fortes
-  if (code >= 95) return "Orage prévu ! Privilégiez les activités abritées.";
+  // 1. Phénomènes météo majeurs (Pluie, Neige, Orage)
+  if (code >= 95) {
+    return "⚡ Alerte Orage : Privilégiez les activités abritées (musées, halles). Évitez les hauteurs et espaces découverts.";
+  }
   if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) {
     return sens == ThermalSensitivity.cold
-        ? "Chutes de neige ! Doudoune épaisse, gants et bonnet indispensables."
-        : "Chutes de neige ! Habillez-vous chaudement.";
+        ? "❄️ Chutes de neige ($temp°C) : Doudoune épaisse, écharpe, gants et chaussures étanches avec semelles antidérapantes."
+        : "❄️ Chutes de neige ($temp°C) : Veste chaude imperméable, bonnet et chaussures adaptées pour marcher au sec.";
   }
-  if (code >= 80 && code <= 82) return "Averses soutenues, imperméable et parapluie requis.";
+  if (code >= 80 && code <= 82) {
+    return "🌧️ Averses soutenues ($temp°C) : Manteau imperméable à capuche et parapluie indispensable. Privilégiez les étapes intérieures.";
+  }
   if (code >= 61 && code <= 67) {
     if (sens == ThermalSensitivity.cold) {
-      return "Temps pluvieux et frais : Manteau imperméable et parapluie indispensables.";
+      return "🌧️ Pluie & fraîcheur ($temp°C) : Manteau déperlant chaud, parapluie et pauses gourmandes régulières au chaud.";
     } else if (sens == ThermalSensitivity.warm) {
-      return "Pluie continue : Coupe-vent imperméable et respirant avec parapluie.";
+      return "🌧️ Pluie ($temp°C) : Coupe-vent imperméable léger et respirant + parapluie. Chaussures fermées recommandées.";
     }
-    return "Pluie continue, prévoyez un bon imperméable et un parapluie.";
+    return "🌧️ Pluie continue ($temp°C) : Imperméable et parapluie indispensables pour explorer la ville confortablement.";
   }
   if (code >= 51 && code <= 57) {
-    return "Bruine passagère : Veste déperlante ou coupe-vent conseillé.";
+    return "🌦️ Bruine passagère ($temp°C) : Veste déperlante ou coupe-vent léger amplement suffisant.";
+  }
+  if (code == 45 || code == 48) {
+    return "🌫️ Bancs de brouillard ($temp°C) : Ambiance feutrée. Veste mi-saison et pause café chaleureuse recommandée.";
   }
 
-
-  // Conseils vestimentaires hyper-personnalisés selon sensibilité thermique
+  // 2. Températures et sensibilité thermique (Ciel dégagé ou nuageux)
   if (sens == ThermalSensitivity.cold) {
-    if (weather.tempMin < 10) return "Frileux : Matinée glaciale, doudoune et écharpe recommandées !";
-    if (weather.tempMax < 20) return "Frileux : Prévoyez un pull chaud et une veste en superposition.";
-    if (weather.tempMax < 25) return "Frileux : Température douce, emportez un gilet pour les passages à l'ombre.";
-    return "Frileux : Belle journée chaude, t-shirt idéal avec petite veste pour le soir.";
+    if (weather.tempMin < 8 || temp < 12) {
+      return "🧣 Frileux ($temp°C) : Air piquant ! Doudoune, écharpe douce et superposition de couches pour rester bien au chaud.";
+    }
+    if (temp < 18) {
+      return "🧥 Frileux ($temp°C) : Fraîcheur modérée. Prévoyez un pull en maille et une veste coupe-vent pour les zones d'ombre.";
+    }
+    if (temp < 24) {
+      return "🌤️ Frileux ($temp°C) : Climat doux. T-shirt avec gilet zippé facile à retirer au fil de la balade.";
+    }
+    return "☀️ Frileux ($temp°C) : Chaleur agréable. Vêtements légers en coton, petite veste fine pour la soirée.";
   }
 
   if (sens == ThermalSensitivity.warm) {
-    if (weather.tempMax > 28) return "Chaleureux : Forte chaleur ! Vêtements en lin très légers et hydratation.";
-    if (weather.tempMax > 22) return "Chaleureux : Tenue ultra-légère et respirante conseillée.";
-    if (weather.tempMin > 17) return "Chaleureux : Nuit douce, t-shirt léger amplement suffisant.";
-    if (weather.tempMax < 16) return "Chaleureux : Fraîcheur modérée, un simple sweat ou veste légère suffit.";
-    return "Chaleureux : Conditions idéales, tenue aérée et lunettes de soleil.";
+    if (temp > 28) {
+      return "🔥 Chaleureux ($temp°C) : Forte chaleur ! Vêtements amples en lin, lunettes, casquette et hydratation fréquente.";
+    }
+    if (temp > 22) {
+      return "😎 Chaleureux ($temp°C) : Chaleur idéale. Tenue ultra-légère, respirante et chaussures aérées.";
+    }
+    if (temp > 16) {
+      return "🌿 Chaleureux ($temp°C) : Température parfaite pour marcher. Simple t-shirt ou chemise fluide.";
+    }
+    return "🍂 Chaleureux ($temp°C) : Fraîcheur vivifiante. Simple sweat ou veste fine suffit largement.";
   }
 
   // Sensibilité équilibrée
-  if (weather.tempMax > 30) return "Forte chaleur ! Pensez à bien vous hydrater.";
-  if (weather.tempMax > 24) return "Beau temps ensoleillé ! Crème solaire conseillée.";
-  if (weather.tempMin < 8) return "Matinée fraîche, emportez une veste.";
-  if (code >= 51) return "Bruine légère, un coupe-vent suffit.";
-  if (code >= 45) return "Brouillard matinal. Idéal pour un café chaud.";
-  if (code >= 2) return "Ciel nuageux, température agréable pour marcher.";
-  return "Conditions idéales pour explorer la ville !";
+  if (temp > 30) {
+    return "☀️ Forte chaleur ($temp°C) : Hydratation régulière, vêtements clairs en matières naturelles et crème solaire.";
+  }
+  if (temp > 23) {
+    return "☀️ Beau temps ($temp°C) : Tenue estivale légère, lunettes de soleil et casquette pour profiter des terrasses et parcs.";
+  }
+  if (temp < 10) {
+    return "🧥 Fraîcheur matinale ($temp°C) : Manteau chaud et tour de cou recommandés pour une découverte matinale agréable.";
+  }
+  if (code == 2 || code == 3) {
+    return "☁️ Ciel couvert ($temp°C) : Climat doux et tempéré, idéal pour arpenter les rues et monuments sans souffrir du soleil.";
+  }
+  return "✨ Météo idéale ($temp°C) : Conditions optimales pour flâner, visiter les monuments et profiter pleinement de votre journée !";
 }
