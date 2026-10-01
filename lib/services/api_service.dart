@@ -263,8 +263,8 @@ class ApiService {
     ];
   }
 
-  Future<Map<String, dynamic>> getProStatus(String userId) =>
-      pro.getProStatus(userId);
+  Future<Map<String, dynamic>> getProStatus(String sessionId) =>
+      pro.getProStatus(sessionId);
 
   // --- INTERESTS BRIDGE METHODS ---
   Future<List<Interest>> getInterests() => interests.getInterests();

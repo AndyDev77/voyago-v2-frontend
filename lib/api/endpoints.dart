@@ -72,7 +72,7 @@ class Endpoints {
 
   // --- PRO & PAYMENTS MODULE ---
   static const String proCheckout = '/api/pro/checkout';
-  static String proStatus(String userId) => '/api/pro/status/$userId';
+  static String proStatus(String sessionId) => '/api/pro/status/$sessionId';
 
   // --- INTERESTS MODULE ---
   static const String interests = '/api/interests';

@@ -36,9 +36,9 @@ class ProApi {
     return ProCheckoutResponse.fromJson(data as Map<String, dynamic>);
   }
 
-  /// Statut de l'abonnement Pro d'un utilisateur
-  Future<Map<String, dynamic>> getProStatus(String userId) async {
-    final data = await _client.get(Endpoints.proStatus(userId));
+  /// Statut d'une session de paiement Stripe (polling après checkout)
+  Future<Map<String, dynamic>> getProStatus(String sessionId) async {
+    final data = await _client.get(Endpoints.proStatus(sessionId));
     return data as Map<String, dynamic>;
   }
 }
