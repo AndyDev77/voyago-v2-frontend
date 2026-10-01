@@ -7,6 +7,7 @@ import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/trip.dart';
 import '../models/poi.dart';
 import '../models/day_weather.dart';
@@ -14,6 +15,7 @@ import '../providers/auth_provider.dart';
 import '../providers/trips_provider.dart';
 import '../services/live_weather_service.dart';
 import '../services/map_ambiance_service.dart';
+import '../services/route_service.dart';
 import '../theme.dart';
 import '../widgets/weather_overlay.dart';
 import '../widgets/itinerary_bottom_sheet.dart';
@@ -54,6 +56,14 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
   Timer? _ambianceRefreshTimer;
   Timer? _mapMoveDebounce;
   LatLng? _lastWeatherFetchCenter;
+
+  // === ROUTING & DISTANCE TRACKING ===
+  Map<int, RouteResult>? _poiDistances;       // user -> each POI
+  Map<int, RouteResult>? _transitRoutes;      // POI[i] -> POI[i+1]
+  RouteResult? _navigationRoute;              // route from user to selected/next POI
+  int? _navigationTargetIndex;                // which POI we're navigating to
+  Timer? _routeRecalcDebounce;
+  LatLng? _lastRouteCalcPosition;             // avoid re-calc on micro-moves
 
   @override
   void initState() {
@@ -196,6 +206,9 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
         userCoords.longitude,
         autoUpdateCity: _currentTrip == null || _activeCityName.isEmpty,
       );
+
+      // 5. Calculer les distances et itinéraires en temps réel
+      _computeRoutesForCurrentDay();
     } catch (e) {
       debugPrint('Erreur lors de l\'initialisation GPS : $e');
     }
@@ -211,11 +224,193 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
     ).listen(
       (Position p) {
         if (!mounted) return;
+        final newPos = LatLng(p.latitude, p.longitude);
         setState(() {
-          _liveUserPosition = LatLng(p.latitude, p.longitude);
+          _liveUserPosition = newPos;
         });
+        // Recalculer les distances si l'utilisateur a bougé de plus de 100m
+        _onUserPositionChangedForRoutes(newPos);
       },
       onError: (_) {},
+    );
+  }
+
+  /// Recalcule les distances/routes quand l'utilisateur bouge significativement (>100m).
+  void _onUserPositionChangedForRoutes(LatLng pos) {
+    if (_lastRouteCalcPosition != null) {
+      final dist = RouteService.straightLineDistance(pos, _lastRouteCalcPosition!);
+      if (dist < 100) return; // Ignore micro-moves < 100m
+    }
+    _routeRecalcDebounce?.cancel();
+    _routeRecalcDebounce = Timer(const Duration(milliseconds: 800), () {
+      _computeRoutesForCurrentDay();
+    });
+  }
+
+  /// Calcule les distances depuis l'utilisateur vers chaque POI du jour + routes inter-POIs.
+  Future<void> _computeRoutesForCurrentDay() async {
+    final trip = _currentTrip;
+    final userPos = _liveUserPosition;
+    if (trip == null || userPos == null || !mounted) return;
+
+    final dayPois = trip.poisForDay(_selectedDay);
+    if (dayPois.isEmpty) return;
+
+    _lastRouteCalcPosition = userPos;
+
+    try {
+      // Distances user -> chaque POI (parallèle)
+      final poiPositions = dayPois.map((p) => LatLng(p.lat, p.lng)).toList();
+      final distances = await RouteService.instance.getDistancesToPois(userPos, poiPositions);
+
+      // Routes entre POIs consécutifs (parallèle)
+      final transitFutures = <int, Future<RouteResult>>{};
+      for (int i = 0; i < dayPois.length - 1; i++) {
+        transitFutures[i] = RouteService.instance.getRoute(
+          LatLng(dayPois[i].lat, dayPois[i].lng),
+          LatLng(dayPois[i + 1].lat, dayPois[i + 1].lng),
+        );
+      }
+      final transitEntries = transitFutures.entries.toList();
+      final transitResults = await Future.wait(transitEntries.map((e) => e.value));
+      final transits = <int, RouteResult>{};
+      for (int i = 0; i < transitEntries.length; i++) {
+        transits[transitEntries[i].key] = transitResults[i];
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _poiDistances = distances;
+        _transitRoutes = transits;
+      });
+
+      // Si navigation active, recalculer aussi la route de navigation
+      if (_navigationTargetIndex != null && _navigationTargetIndex! < dayPois.length) {
+        _computeNavigationRoute(dayPois[_navigationTargetIndex!]);
+      }
+    } catch (e) {
+      debugPrint('Route calculation error: $e');
+    }
+  }
+
+  /// Calcule la route de navigation depuis l'utilisateur vers un POI spécifique.
+  Future<void> _computeNavigationRoute(POI targetPoi) async {
+    final userPos = _liveUserPosition;
+    if (userPos == null || !mounted) return;
+
+    try {
+      final route = await RouteService.instance.getRoute(
+        userPos,
+        LatLng(targetPoi.lat, targetPoi.lng),
+      );
+      if (!mounted) return;
+      setState(() {
+        _navigationRoute = route;
+      });
+    } catch (_) {}
+  }
+
+  /// Lance la navigation vers un POI (affiche le tracé + propose l'app externe).
+  void _navigateToPoi(POI poi) {
+    final trip = _currentTrip;
+    if (trip == null) return;
+    final dayPois = trip.poisForDay(_selectedDay);
+    final idx = dayPois.indexOf(poi);
+
+    setState(() {
+      _navigationTargetIndex = idx >= 0 ? idx : 0;
+      _activePoiIndex = idx >= 0 ? idx : null;
+    });
+
+    _computeNavigationRoute(poi);
+    _animatedMapController.animateTo(dest: LatLng(poi.lat, poi.lng), zoom: 15.5);
+
+    // Proposer d'ouvrir dans une app externe (Google Maps / Apple Maps)
+    _showNavigationChoiceSheet(poi);
+  }
+
+  /// Affiche un bottom sheet pour choisir l'app de navigation externe.
+  void _showNavigationChoiceSheet(POI poi) {
+    if (!mounted) return;
+    final userPos = _liveUserPosition;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: VoyagoColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: VoyagoColors.muted.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '📍 Naviguer vers ${poi.name}',
+                style: const TextStyle(
+                  color: VoyagoColors.text,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (_navigationRoute != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  '${_navigationRoute!.durationLabel} à pied · ${_navigationRoute!.distanceLabel}',
+                  style: TextStyle(
+                    color: VoyagoColors.muted.withValues(alpha: 0.8),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              _NavOption(
+                icon: Icons.directions_walk,
+                label: 'Suivre sur Voyago',
+                subtitle: 'Itinéraire affiché sur la carte',
+                onTap: () => Navigator.pop(ctx),
+              ),
+              const SizedBox(height: 8),
+              _NavOption(
+                icon: Icons.map_outlined,
+                label: 'Google Maps',
+                subtitle: 'Navigation vocale guidée',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  final origin = userPos != null
+                      ? '${userPos.latitude},${userPos.longitude}'
+                      : '';
+                  final dest = '${poi.lat},${poi.lng}';
+                  final url = 'https://www.google.com/maps/dir/$origin/$dest/@${poi.lat},${poi.lng},15z/data=!4m2!4m1!3e2';
+                  launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                },
+              ),
+              const SizedBox(height: 8),
+              _NavOption(
+                icon: Icons.navigation_rounded,
+                label: 'Waze',
+                subtitle: 'Navigation en temps réel',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  final url = 'https://waze.com/ul?ll=${poi.lat},${poi.lng}&navigate=yes';
+                  launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -316,6 +511,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
   void dispose() {
     _mapMoveDebounce?.cancel();
     _ambianceRefreshTimer?.cancel();
+    _routeRecalcDebounce?.cancel();
     _userPositionSub?.cancel();
     _animatedMapController.dispose();
     _searchCtrl.dispose();
@@ -609,10 +805,24 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                   ],
                 ),
 
-                // Route polyline connecting the day's POIs
-                if (dayPois.length >= 2)
-                  PolylineLayer(
-                    polylines: [
+                // Route polylines connecting the day's POIs (vraies routes OSRM ou fallback dotted)
+                PolylineLayer(
+                  polylines: [
+                    // Polylines inter-POIs (routes OSRM réelles si disponibles)
+                    if (_transitRoutes != null)
+                      for (final entry in _transitRoutes!.entries)
+                        if (entry.value.geometry.length >= 2)
+                          Polyline(
+                            points: entry.value.geometry,
+                            strokeWidth: 3.5,
+                            color: ambiance.isNight
+                                ? VoyagoColors.primary.withValues(alpha: 0.8)
+                                : VoyagoColors.primary.withValues(alpha: 0.7),
+                            pattern: const StrokePattern.dotted(),
+                          ),
+
+                    // Fallback: ligne simple entre POIs si pas encore de routes calculées
+                    if (_transitRoutes == null && dayPois.length >= 2)
                       Polyline(
                         points: dayPois
                             .map((p) => LatLng(p.lat, p.lng))
@@ -623,8 +833,18 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                             : VoyagoColors.primary,
                         pattern: const StrokePattern.dotted(),
                       ),
-                    ],
-                  ),
+
+                    // === POLYLINE DE NAVIGATION : User → POI cible (bleu vif, route réelle) ===
+                    if (_navigationRoute != null && _navigationRoute!.geometry.length >= 2)
+                      Polyline(
+                        points: _navigationRoute!.geometry,
+                        strokeWidth: 4.5,
+                        color: const Color(0xFF2196F3),
+                        borderStrokeWidth: 1.5,
+                        borderColor: const Color(0xFF1565C0),
+                      ),
+                  ],
+                ),
 
                 // POI pins on map
                 MarkerLayer(
@@ -1034,10 +1254,18 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
             selectedDay: _selectedDay,
             totalDays: trip.durationDays,
             destination: _activeCityName.isNotEmpty ? _activeCityName : trip.destination,
+            userPosition: _liveUserPosition,
+            poiDistances: _poiDistances,
+            transitRoutes: _transitRoutes,
+            onNavigateToPoi: _navigateToPoi,
             onDayChanged: (day) {
               setState(() {
                 _selectedDay = day;
                 _activePoiIndex = null;
+                _navigationRoute = null;
+                _navigationTargetIndex = null;
+                _poiDistances = null;
+                _transitRoutes = null;
               });
               final newPois = trip.poisForDay(day);
               if (newPois.isNotEmpty) {
@@ -1045,6 +1273,8 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
                 setState(() => _currentCenter = target);
                 _animatedMapController.animateTo(dest: target, zoom: 13.5);
               }
+              // Recalculer les distances pour le nouveau jour
+              _computeRoutesForCurrentDay();
             },
             onPoiTap: (poi) {
               final idx = dayPois.indexOf(poi);
@@ -1185,6 +1415,77 @@ class _MapButton extends StatelessWidget {
               ),
         alignment: Alignment.center,
         child: Icon(icon, color: VoyagoColors.text, size: 20),
+      ),
+    );
+  }
+}
+
+/// Option de navigation dans le bottom sheet de choix d'app.
+class _NavOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _NavOption({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: VoyagoColors.background,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: VoyagoColors.cardBorder),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: VoyagoColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: VoyagoColors.primary, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: VoyagoColors.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: VoyagoColors.muted.withValues(alpha: 0.7),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: VoyagoColors.muted.withValues(alpha: 0.5),
+              size: 14,
+            ),
+          ],
+        ),
       ),
     );
   }

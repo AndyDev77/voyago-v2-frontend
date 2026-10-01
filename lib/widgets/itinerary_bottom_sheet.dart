@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:latlong2/latlong.dart';
 import '../models/poi.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
+import '../services/route_service.dart';
 import '../theme.dart';
 
 /// Draggable bottom sheet showing the traveler dashboard & day POI timeline.
@@ -16,6 +18,18 @@ class ItineraryBottomSheet extends ConsumerWidget {
   final ValueChanged<int> onDayChanged;
   final ValueChanged<POI>? onPoiTap;
 
+  /// Position GPS en temps réel de l'utilisateur connecté.
+  final LatLng? userPosition;
+
+  /// Distances calculées depuis la position GPS vers chaque POI (index -> RouteResult).
+  final Map<int, RouteResult>? poiDistances;
+
+  /// Distances calculées entre POIs consécutifs (index du premier POI -> RouteResult).
+  final Map<int, RouteResult>? transitRoutes;
+
+  /// Callback pour lancer la navigation vers un POI.
+  final ValueChanged<POI>? onNavigateToPoi;
+
   const ItineraryBottomSheet({
     super.key,
     required this.pois,
@@ -24,6 +38,10 @@ class ItineraryBottomSheet extends ConsumerWidget {
     required this.destination,
     required this.onDayChanged,
     this.onPoiTap,
+    this.userPosition,
+    this.poiDistances,
+    this.transitRoutes,
+    this.onNavigateToPoi,
   });
 
   @override
@@ -348,6 +366,14 @@ class ItineraryBottomSheet extends ConsumerWidget {
               const SizedBox(height: 16),
 
               // === TIMELINE ===
+              // === BADGE DISTANCE DEPUIS POSITION GPS (1er POI seulement) ===
+              if (userPosition != null && poiDistances != null && poiDistances!.containsKey(0) && pois.isNotEmpty)
+                _UserToFirstPoiBadge(
+                  distance: poiDistances![0]!,
+                  poiName: pois.first.name,
+                  onNavigate: onNavigateToPoi != null ? () => onNavigateToPoi!(pois.first) : null,
+                ),
+
               if (pois.isEmpty)
                 _EmptyState()
               else
@@ -361,8 +387,15 @@ class ItineraryBottomSheet extends ConsumerWidget {
                       index: i,
                       isFirst: i == 0,
                       onTap: () => onPoiTap?.call(poi),
+                      distanceFromUser: poiDistances?[i],
+                      onNavigate: onNavigateToPoi != null ? () => onNavigateToPoi!(poi) : null,
                     ),
-                    if (!isLast) _TransitSegment(poi: poi, nextPoi: pois[i + 1]),
+                    if (!isLast)
+                      _TransitSegment(
+                        poi: poi,
+                        nextPoi: pois[i + 1],
+                        routeResult: transitRoutes?[i],
+                      ),
                   ];
                 }),
 
@@ -410,12 +443,16 @@ class _TimelinePOI extends StatelessWidget {
   final int index;
   final bool isFirst;
   final VoidCallback? onTap;
+  final RouteResult? distanceFromUser;
+  final VoidCallback? onNavigate;
 
   const _TimelinePOI({
     required this.poi,
     required this.index,
     this.isFirst = false,
     this.onTap,
+    this.distanceFromUser,
+    this.onNavigate,
   });
 
   String get _timeLabel {
@@ -623,7 +660,7 @@ class _TimelinePOI extends StatelessWidget {
 
                           const SizedBox(height: 8),
 
-                          // Tags
+                          // Tags + Distance badge
                           Row(
                             children: [
                               _Tag(
@@ -635,6 +672,43 @@ class _TimelinePOI extends StatelessWidget {
                                 label: _durationLabel(poi.durationMinutes),
                                 color: VoyagoColors.primary,
                               ),
+                              if (distanceFromUser != null) ...[
+                                const SizedBox(width: 6),
+                                _Tag(
+                                  label: '📍 ${distanceFromUser!.distanceLabel}',
+                                  color: const Color(0xFF4CAF50),
+                                ),
+                              ],
+                              const Spacer(),
+                              if (onNavigate != null)
+                                GestureDetector(
+                                  onTap: onNavigate,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: VoyagoColors.primary.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: VoyagoColors.primary.withValues(alpha: 0.3),
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.directions_walk, color: VoyagoColors.primary, size: 13),
+                                        SizedBox(width: 3),
+                                        Text(
+                                          'Y aller',
+                                          style: TextStyle(
+                                            color: VoyagoColors.primary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ],
@@ -719,11 +793,20 @@ class _TimelinePOI extends StatelessWidget {
 class _TransitSegment extends StatelessWidget {
   final POI poi;
   final POI nextPoi;
+  final RouteResult? routeResult;
 
-  const _TransitSegment({required this.poi, required this.nextPoi});
+  const _TransitSegment({
+    required this.poi,
+    required this.nextPoi,
+    this.routeResult,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final label = routeResult != null
+        ? '${routeResult!.durationLabel} · ${routeResult!.distanceLabel}'
+        : '~15 min à pied';
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
@@ -754,13 +837,21 @@ class _TransitSegment extends StatelessWidget {
               children: [
                 Container(height: 1, width: 24, color: VoyagoColors.cardBorder),
                 const SizedBox(width: 8),
+                Icon(
+                  Icons.directions_walk,
+                  color: VoyagoColors.primary.withValues(alpha: 0.5),
+                  size: 12,
+                ),
+                const SizedBox(width: 4),
                 Text(
-                  '~15 min à pied',
+                  label,
                   style: TextStyle(
-                    color: VoyagoColors.muted.withValues(alpha: 0.6),
+                    color: routeResult != null
+                        ? VoyagoColors.text.withValues(alpha: 0.7)
+                        : VoyagoColors.muted.withValues(alpha: 0.6),
                     fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.5,
+                    fontWeight: routeResult != null ? FontWeight.w600 : FontWeight.w500,
+                    letterSpacing: 0.3,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -769,6 +860,93 @@ class _TransitSegment extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Badge compact montrant la distance entre l'utilisateur et le premier POI de la journée
+class _UserToFirstPoiBadge extends StatelessWidget {
+  final RouteResult distance;
+  final String poiName;
+  final VoidCallback? onNavigate;
+
+  const _UserToFirstPoiBadge({
+    required this.distance,
+    required this.poiName,
+    this.onNavigate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: GestureDetector(
+        onTap: onNavigate,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                VoyagoColors.primary.withValues(alpha: 0.12),
+                VoyagoColors.blue.withValues(alpha: 0.08),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: VoyagoColors.primary.withValues(alpha: 0.25),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: VoyagoColors.primary.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.navigation_rounded,
+                  color: VoyagoColors.primary,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Vers ${poiName.length > 22 ? '${poiName.substring(0, 20)}…' : poiName}',
+                      style: const TextStyle(
+                        color: VoyagoColors.text,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${distance.durationLabel} à pied · ${distance.distanceLabel}',
+                      style: TextStyle(
+                        color: VoyagoColors.muted.withValues(alpha: 0.8),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: VoyagoColors.primary,
+                size: 14,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
