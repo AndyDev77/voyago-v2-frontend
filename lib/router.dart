@@ -14,6 +14,7 @@ import 'screens/profile_screen.dart';
 import 'screens/community_screen.dart';
 import 'screens/xp_rewards_screen.dart';
 import 'screens/public_user_screen.dart';
+import 'screens/circle_detail_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/welcome_screen.dart';
 
@@ -133,6 +134,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/community',
         builder: (context, state) => const CommunityScreen(),
+      ),
+      GoRoute(
+        path: '/circle/:circleId',
+        builder: (context, state) {
+          final circleId = state.pathParameters['circleId'] ?? '';
+          return CircleDetailScreen(circleId: circleId);
+        },
       ),
       GoRoute(
         path: '/xp-rewards',
