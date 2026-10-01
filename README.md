@@ -53,7 +53,7 @@
 ```
 lib/
 ├── main.dart           # Point d'entrée, initialisation
-├── router.dart         # GoRouter — 11 routes
+├── router.dart         # GoRouter — 16 routes
 ├── theme.dart          # ThemeData Voyago (dark, #58CC02)
 ├── models/             # Dart models avec fromJson/toJson
 │   ├── auth_user.dart
@@ -70,8 +70,8 @@ lib/
 │   ├── trips_provider.dart
 │   ├── interests_provider.dart
 │   └── profile_provider.dart
-├── screens/                 # 11 écrans
-└── widgets/                 # 7 widgets réutilisables
+├── screens/                 # 14 écrans
+└── widgets/                 # 18 widgets réutilisables
 ```
 
 ---
@@ -80,6 +80,8 @@ lib/
 
 | Écran | Route | Description |
 |---|---|---|
+| Bienvenue | `/welcome` | Écran d'accueil non connecté |
+| Onboarding | `/onboarding` | Profil obligatoire après inscription |
 | Home | `/` | Accueil, XP/niveau, navigation |
 | Auth | `/auth` | Connexion / Inscription (email + Google) |
 | Mot de passe oublié | `/forgot-password` | Reset 2 étapes |
@@ -91,6 +93,7 @@ lib/
 | Communauté | `/community` | Feed public |
 | Récompenses XP | `/xp-rewards` | Système de niveaux |
 | Profil public | `/user/:id` | Voir le profil d'un autre |
+| Cercle | `/circle/:circleId` | Détail d'un cercle communautaire |
 
 ---
 
@@ -99,7 +102,7 @@ lib/
 ### Prérequis
 - Flutter SDK 3.x
 - Android Studio (émulateur) ou Xcode (iOS)
-- Backend Voyago lancé sur port 8001
+- Backend Voyago lancé sur port 3333
 
 ### Étapes
 
