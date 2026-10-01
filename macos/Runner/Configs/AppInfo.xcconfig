@@ -8,7 +8,7 @@
 PRODUCT_NAME = Voyagooo
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.voyago.voyago
+PRODUCT_BUNDLE_IDENTIFIER = com.voyagooo.voyagooo
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.voyago. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 com.voyagooo. All rights reserved.
