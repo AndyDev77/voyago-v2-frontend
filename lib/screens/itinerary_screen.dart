@@ -15,6 +15,7 @@ import '../models/day_weather.dart';
 import '../providers/auth_provider.dart';
 import '../providers/trips_provider.dart';
 import '../providers/notifications_provider.dart';
+import '../providers/journal_provider.dart';
 import '../services/arrival_detector.dart';
 import '../services/live_weather_service.dart';
 import '../services/map_ambiance_service.dart';
@@ -720,7 +721,9 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
       if (user != null) {
         final userTripsAsync = ref.watch(tripsProvider(user.userId));
         return userTripsAsync.when(
-          data: (trips) {
+          data: (allTrips) {
+            // Les voyages passés ont rejoint le journal : la carte montre le voyage en cours
+            final trips = activeTrips(allTrips);
             if (trips.isNotEmpty) {
               _currentTrip ??= trips.first;
               if (_activeCityName.isEmpty) _activeCityName = trips.first.destination;

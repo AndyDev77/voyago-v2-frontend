@@ -22,6 +22,9 @@ class Trip {
   final int likes;
   final DateTime createdAt;
 
+  /// Voyage terminé manuellement (il rejoint alors le journal).
+  final DateTime? completedAt;
+
   const Trip({
     required this.id,
     required this.userId,
@@ -42,6 +45,7 @@ class Trip {
     required this.isPublic,
     required this.likes,
     required this.createdAt,
+    this.completedAt,
   });
 
   factory Trip.fromJson(Map<String, dynamic> json) {
@@ -96,6 +100,7 @@ class Trip {
           : json['createdAt'] != null
               ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
               : DateTime.now(),
+      completedAt: DateTime.tryParse(json['completed_at']?.toString() ?? '')?.toLocal(),
     );
   }
 
@@ -120,7 +125,28 @@ class Trip {
       'is_public': isPublic,
       'likes': likes,
       'created_at': createdAt.toIso8601String(),
+      if (completedAt != null) 'completed_at': completedAt!.toIso8601String(),
     };
+  }
+
+  /// Dernier jour du voyage : end_date, sinon start_date + durée. Null si non daté.
+  DateTime? get lastDay {
+    final end = DateTime.tryParse(endDate ?? '');
+    if (end != null) return end;
+    final start = DateTime.tryParse(startDate ?? '');
+    if (start == null) return null;
+    return start.add(Duration(days: (durationDays - 1).clamp(0, 365)));
+  }
+
+  /// Voyage passé (même règle que le serveur) : terminé manuellement ou dernier
+  /// jour écoulé. Il quitte alors la carte pour le journal de voyage.
+  bool get isPast {
+    if (completedAt != null) return true;
+    final last = lastDay;
+    if (last == null) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return DateTime(last.year, last.month, last.day).isBefore(today);
   }
 
   List<POI> poisForDay(int day) {

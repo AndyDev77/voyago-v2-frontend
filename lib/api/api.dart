@@ -5,6 +5,7 @@ export 'dio_client.dart';
 export 'endpoints.dart';
 export 'gamification_api.dart';
 export 'interests_api.dart';
+export 'journal_api.dart';
 export 'notifications_api.dart';
 export 'places_api.dart';
 export 'pro_api.dart';

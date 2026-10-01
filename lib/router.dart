@@ -17,6 +17,8 @@ import 'screens/public_user_screen.dart';
 import 'screens/circle_detail_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/welcome_screen.dart';
+import 'screens/journal_screen.dart';
+import 'screens/journal_detail_screen.dart';
 
 class RouterNotifier extends ChangeNotifier {
   final Ref _ref;
@@ -141,6 +143,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           final circleId = state.pathParameters['circleId'] ?? '';
           return CircleDetailScreen(circleId: circleId);
         },
+      ),
+      GoRoute(
+        path: '/journal',
+        builder: (context, state) => const JournalScreen(),
+      ),
+      GoRoute(
+        path: '/journal/:tripId',
+        builder: (context, state) => JournalDetailScreen(tripId: state.pathParameters['tripId'] ?? ''),
       ),
       GoRoute(
         path: '/xp-rewards',

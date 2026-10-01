@@ -85,6 +85,16 @@ class Endpoints {
   static const String placeReviews = '/api/places/reviews';
   static const String placeStats = '/api/places/stats';
 
+  // --- JOURNAL DE VOYAGE MODULE ---
+  static const String journal = '/api/journal';
+  static String journalDetail(String tripId) => '/api/journal/$tripId';
+  static String journalEntries(String tripId) => '/api/journal/$tripId/entries';
+  static String journalPhotos(String tripId) => '/api/journal/$tripId/photos';
+  static String journalPhoto(String tripId, String key) => '/api/journal/$tripId/photos/$key';
+  static String journalComplete(String tripId) => '/api/journal/$tripId/complete';
+  static String journalReopen(String tripId) => '/api/journal/$tripId/reopen';
+  static String journalShare(String tripId) => '/api/journal/$tripId/share';
+
   // --- INTERESTS MODULE ---
   static const String interests = '/api/interests';
 }

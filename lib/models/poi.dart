@@ -14,6 +14,9 @@ class POI {
   final int reviewsCount;
   final String? insiderTip;
 
+  /// Pépite secrète peu connue des touristes.
+  final bool hiddenGem;
+
   const POI({
     required this.name,
     required this.description,
@@ -28,6 +31,7 @@ class POI {
     this.rating = 4.7,
     this.reviewsCount = 1250,
     this.insiderTip,
+    this.hiddenGem = false,
   });
 
   factory POI.fromJson(Map<String, dynamic> json) {
@@ -45,6 +49,7 @@ class POI {
       rating: (json['rating'] as num?)?.toDouble() ?? 4.7,
       reviewsCount: (json['reviews_count'] as num?)?.toInt() ?? 1250,
       insiderTip: json['insider_tip']?.toString(),
+      hiddenGem: json['hidden_gem'] == true,
     );
   }
 
@@ -63,6 +68,7 @@ class POI {
       'rating': rating,
       'reviews_count': reviewsCount,
       if (insiderTip != null) 'insider_tip': insiderTip,
+      if (hiddenGem) 'hidden_gem': true,
     };
   }
 }

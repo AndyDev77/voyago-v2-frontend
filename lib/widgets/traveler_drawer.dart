@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/trip.dart';
 import '../providers/auth_provider.dart';
+import '../providers/journal_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/trips_provider.dart';
 import '../theme.dart';
@@ -23,6 +24,7 @@ class TravelerDrawer extends ConsumerWidget {
     final user = authState.user;
     final profileAsync = user != null ? ref.watch(profileProvider(user.userId)) : null;
     final tripsAsync = user != null ? ref.watch(tripsProvider(user.userId)) : null;
+    final pastTripsCount = tripsAsync?.valueOrNull?.where((t) => t.isPast).length ?? 0;
 
     return Drawer(
       backgroundColor: VoyagoColors.surface,
@@ -191,6 +193,15 @@ class TravelerDrawer extends ConsumerWidget {
                     onTap: () => Navigator.of(context).pop(),
                   ),
                   _NavTile(
+                    icon: Icons.auto_stories_outlined,
+                    label: 'Journal de voyage',
+                    badge: pastTripsCount > 0 ? '$pastTripsCount' : null,
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.go('/journal');
+                    },
+                  ),
+                  _NavTile(
                     icon: Icons.add_location_alt_outlined,
                     label: 'Créer un voyage',
                     onTap: () {
@@ -260,12 +271,16 @@ class TravelerDrawer extends ConsumerWidget {
 
                   if (tripsAsync != null)
                     tripsAsync.when(
-                      data: (trips) {
+                      data: (allTrips) {
+                        // Les voyages passés vivent dans le journal, plus sur la carte
+                        final trips = activeTrips(allTrips);
                         if (trips.isEmpty) {
                           return Padding(
                             padding: const EdgeInsets.all(12),
                             child: Text(
-                              'Aucun voyage généré pour le moment',
+                              allTrips.isEmpty
+                                  ? 'Aucun voyage généré pour le moment'
+                                  : 'Aucun voyage en cours. Retrouve les précédents dans ton journal 📖',
                               style: TextStyle(
                                 color: VoyagoColors.muted.withValues(alpha: 0.7),
                                 fontSize: 12,
@@ -314,13 +329,19 @@ class TravelerDrawer extends ConsumerWidget {
                                     fontSize: 13,
                                   ),
                                 ),
-                                trailing: Text(
-                                  '${trip.durationDays}j',
-                                  style: const TextStyle(
-                                    color: VoyagoColors.muted,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${trip.durationDays}j',
+                                      style: const TextStyle(
+                                        color: VoyagoColors.muted,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    _TripMenu(trip: trip),
+                                  ],
                                 ),
                                 onTap: () {
                                   Navigator.of(context).pop();
@@ -375,6 +396,84 @@ class TravelerDrawer extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// Actions d'un voyage du menu : le terminer l'envoie dans le journal.
+class _TripMenu extends ConsumerWidget {
+  final Trip trip;
+
+  const _TripMenu({required this.trip});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return PopupMenuButton<String>(
+      tooltip: 'Options du voyage',
+      padding: EdgeInsets.zero,
+      icon: const Icon(Icons.more_vert_rounded, color: VoyagoColors.muted, size: 18),
+      color: VoyagoColors.background,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: VoyagoColors.cardBorder),
+      ),
+      onSelected: (_) => _complete(context, ref),
+      itemBuilder: (_) => const [
+        PopupMenuItem(
+          value: 'complete',
+          child: Row(
+            children: [
+              Icon(Icons.auto_stories_outlined, color: VoyagoColors.yellow, size: 18),
+              SizedBox(width: 10),
+              Text('Terminer → Journal', style: TextStyle(color: VoyagoColors.text, fontSize: 13)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _complete(BuildContext context, WidgetRef ref) async {
+    final router = GoRouter.of(context);
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: VoyagoColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Terminer ${trip.destination} ?', style: const TextStyle(color: VoyagoColors.text, fontSize: 18)),
+        content: const Text(
+          'Le voyage quitte la carte et rejoint ton journal, avec tes lieux, tes avis et tes souvenirs. '
+          'Tu pourras le remettre sur la carte à tout moment.',
+          style: TextStyle(color: VoyagoColors.muted, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler', style: TextStyle(color: VoyagoColors.muted)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: VoyagoColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Ouvrir mon journal', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await setTripCompleted(ref, tripId: trip.id, completed: true);
+      if (navigator.canPop()) navigator.pop();
+      router.go('/journal/${trip.id}');
+    } catch (_) {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Impossible de terminer ce voyage. Réessaie.'), behavior: SnackBarBehavior.floating),
+      );
+    }
   }
 }
 

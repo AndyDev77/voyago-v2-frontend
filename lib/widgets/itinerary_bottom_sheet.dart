@@ -730,6 +730,11 @@ class _TimelinePOI extends StatelessWidget {
                                       label: _durationLabel(poi.durationMinutes),
                                       color: VoyagoColors.primary,
                                     ),
+                                    if (poi.hiddenGem)
+                                      const _Tag(
+                                        label: '💎 Pépite',
+                                        color: VoyagoColors.yellow,
+                                      ),
                                     if (distanceFromUser != null)
                                       _Tag(
                                         label: '📍 ${distanceFromUser!.distanceLabel}',
