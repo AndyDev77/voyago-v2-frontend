@@ -8,8 +8,8 @@ class Endpoints {
   static const String _envBackendUrl = String.fromEnvironment('BACKEND_URL');
 
   // Hôtes Backend (Port NestJS : 3333)
-  static const String localNetworkBackendUrl = 'http://192.168.1.81:3333';
-  // static const String localNetworkBackendUrl = 'http://10.75.1.14:3333'; // Autre réseau
+  // static const String localNetworkBackendUrl = 'http://192.168.1.81:3333';
+  static const String localNetworkBackendUrl = 'http://10.75.1.6:3333'; // Autre réseau
   static const String androidEmulatorBackendUrl = 'http://10.0.2.2:3333';
   static const String localhostBackendUrl = 'http://localhost:3333';
 

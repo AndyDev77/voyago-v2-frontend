@@ -127,7 +127,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen>
     if (authState.user != null) {
       context.go('/');
     } else {
-      context.go('/swipe');
+      context.go('/auth');
     }
   }
 
