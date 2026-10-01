@@ -1,4 +1,4 @@
-package com.voyago.voyago
+package com.voyagooo.voyagooo
 
 import io.flutter.embedding.android.FlutterActivity
 

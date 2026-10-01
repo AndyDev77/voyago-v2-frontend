@@ -13,7 +13,7 @@ class AppRatingService {
     minLaunches: 4,
     remindDays: 7,
     remindLaunches: 8,
-    googlePlayIdentifier: 'com.voyago.voyago',
+    googlePlayIdentifier: 'com.voyagooo.voyagooo',
   );
 
   bool _initialized = false;
