@@ -1,6 +1,61 @@
 import 'dart:math' as math;
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart' show IconData, Icons;
 import 'package:latlong2/latlong.dart';
+
+/// Mode de déplacement entre deux étapes, déduit des transports choisis à la création du voyage.
+enum TravelMode {
+  walk('à pied', Icons.directions_walk_rounded, 'routed-foot'),
+  bike('à vélo', Icons.directions_bike_rounded, 'routed-bike'),
+  car('en voiture', Icons.directions_car_rounded, 'routed-car'),
+  transit('en transport', Icons.directions_bus_rounded, 'routed-car'),
+  boat('en bateau', Icons.directions_boat_rounded, 'routed-car');
+
+  const TravelMode(this.label, this.icon, this.osrmService);
+
+  /// Libellé court affiché après la durée (ex : « 12 min en transport »).
+  final String label;
+  final IconData icon;
+
+  /// Service OSRM de routing.openstreetmap.de (vrais profils piéton / vélo / voiture).
+  final String osrmService;
+
+  /// Au-delà de cette distance à vol d'oiseau, on ne propose plus la marche
+  /// si le voyageur a choisi un autre moyen de transport.
+  static const double walkableMeters = 1200;
+
+  /// Choisit le mode d'un trajet selon les transports du voyage et la distance.
+  /// La marche reste privilégiée pour les courts trajets si elle a été choisie.
+  static TravelMode forTrip(List<String> transports, double straightMeters) {
+    final modes = transports.map(_fromTransport).whereType<TravelMode>().toSet();
+    if (modes.isEmpty) return TravelMode.walk;
+    if (modes.contains(TravelMode.walk) && (straightMeters <= walkableMeters || modes.length == 1)) {
+      return TravelMode.walk;
+    }
+    for (final preferred in const [TravelMode.car, TravelMode.transit, TravelMode.bike, TravelMode.boat]) {
+      if (modes.contains(preferred)) return preferred;
+    }
+    return TravelMode.walk;
+  }
+
+  /// Mode principal du voyage (icône du bouton « Y aller »).
+  static TravelMode primaryFor(List<String> transports) => forTrip(transports, double.infinity);
+
+  static TravelMode? _fromTransport(String raw) {
+    final t = raw.toLowerCase().trim();
+    if (t.contains('march') || t.contains('pied') || t == 'walk') return TravelMode.walk;
+    if (t.contains('velo') || t.contains('vélo') || t.contains('bike') || t.contains('trottinette')) {
+      return TravelMode.bike;
+    }
+    if (t.contains('voiture') || t.contains('taxi') || t.contains('vtc') || t == 'car') return TravelMode.car;
+    if (t.contains('bateau') || t.contains('ferry') || t == 'boat') return TravelMode.boat;
+    if (t.contains('transport') || t.contains('metro') || t.contains('métro') || t.contains('bus') ||
+        t.contains('tram') || t.contains('train')) {
+      return TravelMode.transit;
+    }
+    return null;
+  }
+}
 
 /// Résultat d'un calcul d'itinéraire entre deux points.
 class RouteResult {
@@ -19,13 +74,23 @@ class RouteResult {
   /// Nom de la rue d'arrivée (si disponible).
   final String? destinationStreet;
 
+  /// Mode de déplacement utilisé pour ce calcul.
+  final TravelMode mode;
+
+  /// true si la durée vient d'une estimation locale (réseau indisponible).
+  final bool isEstimate;
+
   const RouteResult({
     required this.distanceMeters,
     required this.durationSeconds,
     required this.geometry,
     this.originStreet,
     this.destinationStreet,
+    this.mode = TravelMode.walk,
+    this.isEstimate = false,
   });
+
+  int get durationMinutes => (durationSeconds / 60).ceil();
 
   /// Distance formatée (ex: "1.2 km" ou "450 m").
   String get distanceLabel {
@@ -37,7 +102,7 @@ class RouteResult {
 
   /// Durée formatée (ex: "6 min" ou "1h12").
   String get durationLabel {
-    final totalMin = (durationSeconds / 60).ceil();
+    final totalMin = durationMinutes;
     if (totalMin < 60) return '$totalMin min';
     final h = totalMin ~/ 60;
     final m = totalMin % 60;
@@ -67,28 +132,30 @@ class RouteService {
   static const String cycling = 'bike';
 
   /// Calcule l'itinéraire entre [origin] et [destination] via OSRM.
-  /// Utilise le profil [profile] (foot, car, bike). Fallback Haversine si réseau indisponible.
+  /// [mode] prime sur [profile] (conservé pour compatibilité : foot, car, bike).
+  /// Fallback : estimation locale à vol d'oiseau si le réseau est indisponible.
   Future<RouteResult> getRoute(
     LatLng origin,
     LatLng destination, {
     String profile = 'foot',
+    TravelMode? mode,
   }) async {
-    final key = _cacheKey(origin, destination, profile);
+    final travelMode = mode ??
+        (profile == 'bike'
+            ? TravelMode.bike
+            : profile == 'car'
+                ? TravelMode.car
+                : TravelMode.walk);
+    final key = _cacheKey(origin, destination, travelMode.name);
     final cached = _cache[key];
     if (cached != null && DateTime.now().difference(cached.time) < _cacheTtl) {
       return cached.result;
     }
 
     try {
-      // OSRM public demo server (walking profile)
-      final osrmProfile = profile == 'foot'
-          ? 'foot'
-          : profile == 'bike'
-              ? 'bike'
-              : 'car';
-
-      final url =
-          'https://router.project-osrm.org/route/v1/$osrmProfile/'
+      // routing.openstreetmap.de expose de vrais profils piéton / vélo / voiture
+      // (le serveur de démo router.project-osrm.org ne calcule qu'en voiture).
+      final url = 'https://routing.openstreetmap.de/${travelMode.osrmService}/route/v1/driving/'
           '${origin.longitude},${origin.latitude};'
           '${destination.longitude},${destination.latitude}'
           '?overview=full&geometries=geojson&steps=false';
@@ -99,7 +166,7 @@ class RouteService {
       if (data['code'] == 'Ok' && data['routes'] != null && (data['routes'] as List).isNotEmpty) {
         final route = data['routes'][0];
         final distance = (route['distance'] as num).toDouble();
-        final duration = (route['duration'] as num).toDouble();
+        final roadDuration = (route['duration'] as num).toDouble();
 
         // Parse GeoJSON geometry
         final coords = route['geometry']['coordinates'] as List;
@@ -126,29 +193,53 @@ class RouteService {
 
         final result = RouteResult(
           distanceMeters: distance,
-          durationSeconds: duration,
+          durationSeconds: _durationForMode(travelMode, distance, roadDuration),
           geometry: points,
           originStreet: originStreet,
           destinationStreet: destStreet,
+          mode: travelMode,
         );
 
         _putCache(key, result);
         return result;
       }
     } catch (_) {
-      // Réseau indisponible → fallback Haversine
+      // Réseau indisponible → estimation locale
     }
 
-    // Fallback : calcul à vol d'oiseau Haversine (majoré x1.35 pour marche en ville)
-    final straightDist = _haversineDistance(origin, destination);
-    final walkDist = straightDist * 1.35;
-    final walkDuration = walkDist / 1.2; // ~1.2 m/s vitesse de marche moyenne
+    return estimate(origin, destination, travelMode);
+  }
 
+  /// Estimation instantanée sans réseau (affichage immédiat avant le calcul OSRM).
+  static RouteResult estimate(LatLng origin, LatLng destination, TravelMode mode) {
+    // Majoration du vol d'oiseau pour tenir compte du tracé réel des rues
+    final distance = _haversineDistance(origin, destination) * (mode == TravelMode.walk ? 1.35 : 1.3);
     return RouteResult(
-      distanceMeters: walkDist,
-      durationSeconds: walkDuration,
-      geometry: [origin, destination], // Ligne droite en fallback
+      distanceMeters: distance,
+      durationSeconds: _durationForMode(mode, distance, null),
+      geometry: [origin, destination],
+      mode: mode,
+      isEstimate: true,
     );
+  }
+
+  /// Durée selon le mode. Les transports en commun et le bateau n'ont pas de profil
+  /// OSRM : on part de la distance routière, à vitesse moyenne arrêts compris,
+  /// plus le temps d'attente.
+  static double _durationForMode(TravelMode mode, double distanceMeters, double? roadDurationSeconds) {
+    switch (mode) {
+      case TravelMode.transit:
+        return distanceMeters / 5.5 + 300; // ~20 km/h + 5 min d'attente / correspondance
+      case TravelMode.boat:
+        return distanceMeters / 4.5 + 420; // ~16 km/h + 7 min d'embarquement
+      case TravelMode.walk:
+        return roadDurationSeconds ?? distanceMeters / 1.25;
+      case TravelMode.bike:
+        return roadDurationSeconds ?? distanceMeters / 4.2;
+      case TravelMode.car:
+        // + 3 min pour se garer ; vitesse urbaine si pas de durée OSRM
+        return (roadDurationSeconds ?? distanceMeters / 8.5) + 180;
+    }
   }
 
   /// Calcule les distances depuis [userPosition] vers chaque POI de la liste.
@@ -158,10 +249,14 @@ class RouteService {
     LatLng userPosition,
     List<LatLng> poiPositions, {
     String profile = 'foot',
+    List<String>? transports,
   }) async {
     final futures = <int, Future<RouteResult>>{};
     for (int i = 0; i < poiPositions.length; i++) {
-      futures[i] = getRoute(userPosition, poiPositions[i], profile: profile);
+      final mode = transports == null
+          ? null
+          : TravelMode.forTrip(transports, _haversineDistance(userPosition, poiPositions[i]));
+      futures[i] = getRoute(userPosition, poiPositions[i], profile: profile, mode: mode);
     }
 
     final results = <int, RouteResult>{};

@@ -38,6 +38,8 @@ dependencies:
   animated_text_kit: ^4.3.0
   emoji_picker_flutter: ^4.4.0
   animated_emoji: ^3.2.1
+  custom_rating_bar: ^3.0.0
+  rate_my_app: ^2.3.2
 
 dev_dependencies:
   flutter_test:

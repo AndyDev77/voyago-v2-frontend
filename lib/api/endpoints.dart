@@ -74,6 +74,17 @@ class Endpoints {
   static const String proCheckout = '/api/pro/checkout';
   static String proStatus(String sessionId) => '/api/pro/status/$sessionId';
 
+  // --- NOTIFICATIONS MODULE ---
+  static const String notifications = '/api/notifications';
+  static const String notificationsUnreadCount = '/api/notifications/unread-count';
+  static const String notificationsReadAll = '/api/notifications/read-all';
+  static const String notificationsArrival = '/api/notifications/arrival';
+  static String notificationRead(String id) => '/api/notifications/$id/read';
+
+  // --- PLACES (AVIS & ÉTOILES) MODULE ---
+  static const String placeReviews = '/api/places/reviews';
+  static const String placeStats = '/api/places/stats';
+
   // --- INTERESTS MODULE ---
   static const String interests = '/api/interests';
 }

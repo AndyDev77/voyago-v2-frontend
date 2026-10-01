@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:sizer/sizer.dart';
+import 'services/app_rating_service.dart';
 import 'services/storage_service.dart';
 import 'router.dart';
 import 'theme.dart';
@@ -11,6 +12,8 @@ void main() async {
   await initializeDateFormatting('fr_FR', null);
   await initializeDateFormatting('fr', null);
   await StorageService.instance.init();
+  // Compte les lancements pour la demande de note sur le store (sans bloquer le démarrage)
+  AppRatingService.instance.init();
   runApp(const ProviderScope(child: VoyagoApp()));
 }
 

@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:custom_rating_bar/custom_rating_bar.dart';
 import 'package:latlong2/latlong.dart';
+import '../models/place_stats.dart';
 import '../models/poi.dart';
 import '../providers/auth_provider.dart';
+import '../providers/place_stats_provider.dart';
 import '../providers/profile_provider.dart';
 import '../services/route_service.dart';
 import '../theme.dart';
+import 'notification_bell.dart';
+import 'place_review_sheet.dart';
 
 /// Draggable bottom sheet showing the traveler dashboard & day POI timeline.
 /// Faithful adaptation of the HTML template right sidebar for mobile.
@@ -30,6 +35,12 @@ class ItineraryBottomSheet extends ConsumerWidget {
   /// Callback pour lancer la navigation vers un POI.
   final ValueChanged<POI>? onNavigateToPoi;
 
+  /// Transports choisis à la création du voyage (marche, velo, transport, voiture, bateau).
+  final List<String> transports;
+
+  /// Identifiant du voyage (rattaché aux avis laissés depuis l'itinéraire).
+  final String? tripId;
+
   const ItineraryBottomSheet({
     super.key,
     required this.pois,
@@ -42,7 +53,36 @@ class ItineraryBottomSheet extends ConsumerWidget {
     this.poiDistances,
     this.transitRoutes,
     this.onNavigateToPoi,
+    this.transports = const [],
+    this.tripId,
   });
+
+  /// Trajet entre l'étape [i] et la suivante : calcul OSRM si disponible,
+  /// sinon estimation instantanée selon le mode du voyage.
+  RouteResult _segment(int i) {
+    final computed = transitRoutes?[i];
+    if (computed != null) return computed;
+    final from = LatLng(pois[i].lat, pois[i].lng);
+    final to = LatLng(pois[i + 1].lat, pois[i + 1].lng);
+    final mode = TravelMode.forTrip(transports, RouteService.straightLineDistance(from, to));
+    return RouteService.estimate(from, to, mode);
+  }
+
+  /// Heure de début de chaque étape (minutes depuis minuit) : départ à 9h, puis
+  /// durée de visite + temps de trajet réel (arrondi aux 5 min) entre chaque étape.
+  List<int> _startMinutes() {
+    const dayStart = 9 * 60;
+    final starts = <int>[];
+    var t = dayStart;
+    for (int i = 0; i < pois.length; i++) {
+      starts.add(t);
+      if (i < pois.length - 1) {
+        final travel = _segment(i).durationMinutes;
+        t += pois[i].durationMinutes + ((travel + 4) ~/ 5) * 5;
+      }
+    }
+    return starts;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -50,6 +90,14 @@ class ItineraryBottomSheet extends ConsumerWidget {
     final user = authState.user;
     final profileAsync = user != null ? ref.watch(profileProvider(user.userId)) : null;
     final profile = profileAsync?.valueOrNull;
+
+    // Étoiles communautaires des lieux du jour (un seul appel, mis en cache)
+    final placeStats = ref.watch(placeStatsProvider);
+    if (pois.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(placeStatsProvider.notifier).ensure(pois);
+      });
+    }
 
     return DraggableScrollableSheet(
       initialChildSize: 0.45,
@@ -161,17 +209,7 @@ class ItineraryBottomSheet extends ConsumerWidget {
                         ),
 
                         // Notification / Share action
-                        IconButton(
-                          icon: const Icon(Icons.notifications_none, color: VoyagoColors.muted, size: 22),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Aucune nouvelle notification de voyage'),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          },
-                        ),
+                        const NotificationBell(),
                       ],
                     ),
 
@@ -377,27 +415,38 @@ class ItineraryBottomSheet extends ConsumerWidget {
               if (pois.isEmpty)
                 _EmptyState()
               else
-                ...pois.asMap().entries.expand((entry) {
-                  final i = entry.key;
-                  final poi = entry.value;
-                  final isLast = i == pois.length - 1;
-                  return [
-                    _TimelinePOI(
-                      poi: poi,
-                      index: i,
-                      isFirst: i == 0,
-                      onTap: () => onPoiTap?.call(poi),
-                      distanceFromUser: poiDistances?[i],
-                      onNavigate: onNavigateToPoi != null ? () => onNavigateToPoi!(poi) : null,
-                    ),
-                    if (!isLast)
-                      _TransitSegment(
+                ...() {
+                  final starts = _startMinutes();
+                  final primaryMode = TravelMode.primaryFor(transports);
+                  return pois.asMap().entries.expand((entry) {
+                    final i = entry.key;
+                    final poi = entry.value;
+                    final isLast = i == pois.length - 1;
+                    return [
+                      _TimelinePOI(
                         poi: poi,
-                        nextPoi: pois[i + 1],
-                        routeResult: transitRoutes?[i],
+                        index: i,
+                        isFirst: i == 0,
+                        startMinutes: starts[i],
+                        navigateIcon: primaryMode.icon,
+                        stats: placeStats[placeCacheKey(poi.name, poi.lat, poi.lng)],
+                        onRate: () => showPlaceReviewSheet(
+                          context,
+                          ReviewTarget.fromPoi(poi, destination: destination, tripId: tripId),
+                        ),
+                        onTap: () => onPoiTap?.call(poi),
+                        distanceFromUser: poiDistances?[i],
+                        onNavigate: onNavigateToPoi != null ? () => onNavigateToPoi!(poi) : null,
                       ),
-                  ];
-                }),
+                      if (!isLast)
+                        _TransitSegment(
+                          poi: poi,
+                          nextPoi: pois[i + 1],
+                          routeResult: _segment(i),
+                        ),
+                    ];
+                  });
+                }(),
 
               // Add plan placeholder card at the end of the day
               Padding(
@@ -417,12 +466,16 @@ class ItineraryBottomSheet extends ConsumerWidget {
                     children: [
                       Icon(Icons.add_circle_outline, color: VoyagoColors.muted.withValues(alpha: 0.6), size: 18),
                       const SizedBox(width: 8),
-                      Text(
-                        'Ajouter une étape personnalisée...',
-                        style: TextStyle(
-                          color: VoyagoColors.muted.withValues(alpha: 0.8),
-                          fontSize: 13,
-                          fontStyle: FontStyle.italic,
+                      Flexible(
+                        child: Text(
+                          'Ajouter une étape personnalisée...',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: VoyagoColors.muted.withValues(alpha: 0.8),
+                            fontSize: 13,
+                            fontStyle: FontStyle.italic,
+                          ),
                         ),
                       ),
                     ],
@@ -446,20 +499,34 @@ class _TimelinePOI extends StatelessWidget {
   final RouteResult? distanceFromUser;
   final VoidCallback? onNavigate;
 
+  /// Heure de début calculée (minutes depuis minuit).
+  final int startMinutes;
+
+  /// Icône du mode de déplacement principal (bouton « Y aller »).
+  final IconData navigateIcon;
+
+  /// Étoiles des voyageurs Voyago (null tant qu'elles ne sont pas chargées).
+  final PlaceStats? stats;
+
+  /// Ouvre la notation du lieu.
+  final VoidCallback? onRate;
+
   const _TimelinePOI({
     required this.poi,
     required this.index,
+    required this.startMinutes,
     this.isFirst = false,
     this.onTap,
     this.distanceFromUser,
     this.onNavigate,
+    this.navigateIcon = Icons.directions_walk,
+    this.stats,
+    this.onRate,
   });
 
   String get _timeLabel {
-    const startHour = 9;
-    final totalMinutes = startHour * 60 + (index * (poi.durationMinutes + 20));
-    final h = (totalMinutes ~/ 60) % 24;
-    final m = totalMinutes % 60;
+    final h = (startMinutes ~/ 60) % 24;
+    final m = startMinutes % 60;
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
   }
 
@@ -588,21 +655,8 @@ class _TimelinePOI extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 4),
 
-                                    // Rating
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.star, color: Colors.amber, size: 14),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${poi.rating.toStringAsFixed(1)} (${_formatReviews(poi.reviewsCount)})',
-                                          style: const TextStyle(
-                                            color: VoyagoColors.text,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                    // Étoiles : avis réels des voyageurs Voyago, sinon note estimée par l'IA
+                                    _PlaceRatingRow(poi: poi, stats: stats, onRate: onRate),
                                     const SizedBox(height: 4),
 
                                     Text(
@@ -660,26 +714,31 @@ class _TimelinePOI extends StatelessWidget {
 
                           const SizedBox(height: 8),
 
-                          // Tags + Distance badge
+                          // Tags + Distance badge (repassent à la ligne sur les écrans étroits)
                           Row(
                             children: [
-                              _Tag(
-                                label: poi.category,
-                                color: VoyagoColors.blue,
+                              Expanded(
+                                child: Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: [
+                                    _Tag(
+                                      label: poi.category,
+                                      color: VoyagoColors.blue,
+                                    ),
+                                    _Tag(
+                                      label: _durationLabel(poi.durationMinutes),
+                                      color: VoyagoColors.primary,
+                                    ),
+                                    if (distanceFromUser != null)
+                                      _Tag(
+                                        label: '📍 ${distanceFromUser!.distanceLabel}',
+                                        color: const Color(0xFF4CAF50),
+                                      ),
+                                  ],
+                                ),
                               ),
                               const SizedBox(width: 6),
-                              _Tag(
-                                label: _durationLabel(poi.durationMinutes),
-                                color: VoyagoColors.primary,
-                              ),
-                              if (distanceFromUser != null) ...[
-                                const SizedBox(width: 6),
-                                _Tag(
-                                  label: '📍 ${distanceFromUser!.distanceLabel}',
-                                  color: const Color(0xFF4CAF50),
-                                ),
-                              ],
-                              const Spacer(),
                               if (onNavigate != null)
                                 GestureDetector(
                                   onTap: onNavigate,
@@ -692,12 +751,12 @@ class _TimelinePOI extends StatelessWidget {
                                         color: VoyagoColors.primary.withValues(alpha: 0.3),
                                       ),
                                     ),
-                                    child: const Row(
+                                    child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Icon(Icons.directions_walk, color: VoyagoColors.primary, size: 13),
-                                        SizedBox(width: 3),
-                                        Text(
+                                        Icon(navigateIcon, color: VoyagoColors.primary, size: 13),
+                                        const SizedBox(width: 3),
+                                        const Text(
                                           'Y aller',
                                           style: TextStyle(
                                             color: VoyagoColors.primary,
@@ -789,6 +848,82 @@ class _TimelinePOI extends StatelessWidget {
   }
 }
 
+/// Rangée d'étoiles d'un lieu. Les avis des voyageurs Voyago priment sur la note
+/// estimée par l'IA ; un toucher ouvre la notation.
+class _PlaceRatingRow extends StatelessWidget {
+  final POI poi;
+  final PlaceStats? stats;
+  final VoidCallback? onRate;
+
+  const _PlaceRatingRow({required this.poi, this.stats, this.onRate});
+
+  @override
+  Widget build(BuildContext context) {
+    final community = stats != null && stats!.hasCommunityReviews;
+    final rating = community ? stats!.ratingAvg! : poi.rating;
+    final countLabel = community
+        ? '${stats!.reviewsCount} avis'
+        : _TimelinePOI._formatReviews(poi.reviewsCount);
+    final myRating = stats?.myRating;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onRate,
+      child: Row(
+        children: [
+          RatingBar.readOnly(
+            // Clé : le widget ne relit la note qu'à sa création
+            key: ValueKey('${poi.name}_$rating'),
+            initialRating: (rating * 2).round() / 2,
+            isHalfAllowed: true,
+            filledIcon: Icons.star_rounded,
+            halfFilledIcon: Icons.star_half_rounded,
+            emptyIcon: Icons.star_outline_rounded,
+            filledColor: VoyagoColors.yellow,
+            halfFilledColor: VoyagoColors.yellow,
+            emptyColor: VoyagoColors.muted.withValues(alpha: 0.45),
+            size: 14,
+          ),
+          const SizedBox(width: 5),
+          // Un seul texte qui se tronque proprement sur les petits écrans
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: '${rating.toStringAsFixed(1)} ($countLabel)'),
+                  if (community && stats!.likesCount > 0) ...[
+                    const TextSpan(text: '  '),
+                    const WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Icon(Icons.favorite_rounded, color: VoyagoColors.coral, size: 11),
+                    ),
+                    TextSpan(
+                      text: ' ${stats!.likesCount}',
+                      style: const TextStyle(color: VoyagoColors.muted, fontSize: 10),
+                    ),
+                  ],
+                  if (myRating != null)
+                    TextSpan(
+                      text: '  · Toi : $myRating★',
+                      style: const TextStyle(color: VoyagoColors.primary, fontSize: 10, fontWeight: FontWeight.w800),
+                    ),
+                ],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: VoyagoColors.text,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Transit segment between two POIs
 class _TransitSegment extends StatelessWidget {
   final POI poi;
@@ -803,9 +938,12 @@ class _TransitSegment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = routeResult != null
-        ? '${routeResult!.durationLabel} · ${routeResult!.distanceLabel}'
+    final route = routeResult;
+    final modeIcon = route?.mode.icon ?? Icons.directions_walk;
+    final label = route != null
+        ? '${route.isEstimate ? '~' : ''}${route.durationLabel} ${route.mode.label} · ${route.distanceLabel}'
         : '~15 min à pied';
+    final isPrecise = route != null && !route.isEstimate;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -824,7 +962,7 @@ class _TransitSegment extends StatelessWidget {
                   border: Border.all(color: VoyagoColors.cardBorder),
                 ),
                 child: Icon(
-                  Icons.directions_walk,
+                  modeIcon,
                   color: VoyagoColors.muted.withValues(alpha: 0.6),
                   size: 14,
                 ),
@@ -838,20 +976,26 @@ class _TransitSegment extends StatelessWidget {
                 Container(height: 1, width: 24, color: VoyagoColors.cardBorder),
                 const SizedBox(width: 8),
                 Icon(
-                  Icons.directions_walk,
+                  modeIcon,
                   color: VoyagoColors.primary.withValues(alpha: 0.5),
                   size: 12,
                 ),
                 const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: routeResult != null
-                        ? VoyagoColors.text.withValues(alpha: 0.7)
-                        : VoyagoColors.muted.withValues(alpha: 0.6),
-                    fontSize: 11,
-                    fontWeight: routeResult != null ? FontWeight.w600 : FontWeight.w500,
-                    letterSpacing: 0.3,
+                // Le libellé prend la place disponible et se tronque si l'écran est étroit
+                Flexible(
+                  flex: 8,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isPrecise
+                          ? VoyagoColors.text.withValues(alpha: 0.7)
+                          : VoyagoColors.muted.withValues(alpha: 0.6),
+                      fontSize: 11,
+                      fontWeight: isPrecise ? FontWeight.w600 : FontWeight.w500,
+                      letterSpacing: 0.3,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -929,7 +1073,7 @@ class _UserToFirstPoiBadge extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${distance.durationLabel} à pied · ${distance.distanceLabel}',
+                      '${distance.durationLabel} ${distance.mode.label} · ${distance.distanceLabel}',
                       style: TextStyle(
                         color: VoyagoColors.muted.withValues(alpha: 0.8),
                         fontSize: 11,

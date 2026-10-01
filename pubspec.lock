@@ -145,6 +145,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.2"
+  custom_rating_bar:
+    dependency: "direct main"
+    description:
+      name: custom_rating_bar
+      sha256: c2dafa488843b29f50ac2c2905b6a4cefd2cb603de31c6224adb047b6ed8593e
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.0"
   dart_earcut:
     dependency: transitive
     description:
@@ -318,6 +326,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.34"
+  flutter_rating_bar:
+    dependency: transitive
+    description:
+      name: flutter_rating_bar
+      sha256: d2af03469eac832c591a1eba47c91ecc871fe5708e69967073c043b2d775ed93
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.0.1"
   flutter_riverpod:
     dependency: "direct main"
     description:
@@ -816,6 +832,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.0"
+  rate_my_app:
+    dependency: "direct main"
+    description:
+      name: rate_my_app
+      sha256: aeb400808f99aba7e8b853b911915bca10308aff711fa8e2d46b5f68dc383786
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.2"
   riverpod:
     dependency: transitive
     description:

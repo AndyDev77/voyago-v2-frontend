@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_animations/flutter_map_animations.dart';
@@ -13,6 +14,8 @@ import '../models/poi.dart';
 import '../models/day_weather.dart';
 import '../providers/auth_provider.dart';
 import '../providers/trips_provider.dart';
+import '../providers/notifications_provider.dart';
+import '../services/arrival_detector.dart';
 import '../services/live_weather_service.dart';
 import '../services/map_ambiance_service.dart';
 import '../services/route_service.dart';
@@ -23,6 +26,7 @@ import '../widgets/itinerary_bottom_sheet.dart';
 import '../widgets/map_poi_pin.dart';
 import '../widgets/traveler_drawer.dart';
 import '../widgets/map_ambiance_overlay.dart';
+import '../widgets/place_review_sheet.dart';
 
 class ItineraryScreen extends ConsumerStatefulWidget {
   final String tripId;
@@ -67,6 +71,7 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
   int? _navigationTargetIndex;                // which POI we're navigating to
   Timer? _routeRecalcDebounce;
   LatLng? _lastRouteCalcPosition;             // avoid re-calc on micro-moves
+  String? _transitRoutesKey;                  // "<tripId>|<day>" des trajets inter-POIs calculés
 
   @override
   void initState() {
@@ -233,9 +238,97 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
         });
         // Recalculer les distances si l'utilisateur a bougé de plus de 100m
         _onUserPositionChangedForRoutes(newPos);
+        // Arrivée sur un lieu de l'itinéraire → demande d'avis
+        _checkArrival(newPos, p.accuracy);
       },
       onError: (_) {},
     );
+  }
+
+  bool _arrivalCheckInFlight = false;
+
+  /// Détecte l'arrivée sur un lieu du voyage (position GPS en direct uniquement) :
+  /// notification dans la cloche + bannière proposant de noter le lieu.
+  Future<void> _checkArrival(LatLng position, double accuracy) async {
+    final trip = _currentTrip;
+    if (trip == null || trip.id.startsWith('demo') || _arrivalCheckInFlight) return;
+    if (!ref.read(isAuthenticatedProvider)) return;
+
+    _arrivalCheckInFlight = true;
+    try {
+      final poi = await ArrivalDetector.instance.detect(
+        trip: trip,
+        position: position,
+        accuracyMeters: accuracy,
+        selectedDay: _selectedDay,
+      );
+      if (poi == null || !mounted) return;
+      await ArrivalDetector.instance.markPrompted(trip, poi);
+
+      final destination = _activeCityName.isNotEmpty ? _activeCityName : trip.destination;
+      ref.read(notificationsProvider.notifier).recordArrival(
+            placeName: poi.name,
+            lat: poi.lat,
+            lng: poi.lng,
+            tripId: trip.id,
+            destination: destination,
+            day: poi.day,
+            imageUrl: poi.imageUrl,
+          );
+      HapticFeedback.heavyImpact();
+
+      _showSafeSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 10),
+          backgroundColor: VoyagoColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: VoyagoColors.primary.withValues(alpha: 0.4)),
+          ),
+          content: Row(
+            children: [
+              const Text('📍', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bienvenue à ${poi.name} !',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: VoyagoColors.text, fontWeight: FontWeight.w800, fontSize: 13),
+                    ),
+                    const Text(
+                      'Note ta visite pour guider les prochains voyageurs',
+                      style: TextStyle(color: VoyagoColors.muted, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          action: SnackBarAction(
+            label: 'NOTER ⭐',
+            textColor: VoyagoColors.yellow,
+            onPressed: () {
+              if (!mounted) return;
+              showPlaceReviewSheet(
+                context,
+                ReviewTarget.fromPoi(poi, destination: destination, tripId: trip.id),
+                fromArrival: true,
+              );
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Arrival detection error: $e');
+    } finally {
+      _arrivalCheckInFlight = false;
+    }
   }
 
   /// Recalcule les distances/routes quand l'utilisateur bouge significativement (>100m).
@@ -250,6 +343,37 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
     });
   }
 
+  /// Calcule les trajets entre étapes consécutives du jour selon les transports du voyage.
+  /// Indépendant du GPS : les temps de trajet s'affichent même sans localisation.
+  Future<void> _computeTransitRoutesForDay() async {
+    final trip = _currentTrip;
+    if (trip == null || !mounted) return;
+    final day = _selectedDay;
+    final key = '${trip.id}|$day';
+    _transitRoutesKey = key;
+
+    final dayPois = trip.poisForDay(day);
+    if (dayPois.length < 2) return;
+
+    try {
+      final futures = <Future<RouteResult>>[];
+      for (int i = 0; i < dayPois.length - 1; i++) {
+        final from = LatLng(dayPois[i].lat, dayPois[i].lng);
+        final to = LatLng(dayPois[i + 1].lat, dayPois[i + 1].lng);
+        final mode = TravelMode.forTrip(trip.transports, RouteService.straightLineDistance(from, to));
+        futures.add(RouteService.instance.getRoute(from, to, mode: mode));
+      }
+      final results = await Future.wait(futures);
+      // Ignorer un résultat arrivé après un changement de jour ou de voyage
+      if (!mounted || _transitRoutesKey != key) return;
+      setState(() {
+        _transitRoutes = {for (int i = 0; i < results.length; i++) i: results[i]};
+      });
+    } catch (e) {
+      debugPrint('Transit routes error: $e');
+    }
+  }
+
   /// Calcule les distances depuis l'utilisateur vers chaque POI du jour + routes inter-POIs.
   Future<void> _computeRoutesForCurrentDay() async {
     final trip = _currentTrip;
@@ -262,30 +386,19 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
     _lastRouteCalcPosition = userPos;
 
     try {
-      // Distances user -> chaque POI (parallèle)
+      // Distances user -> chaque POI (parallèle), selon les transports du voyage
       final poiPositions = dayPois.map((p) => LatLng(p.lat, p.lng)).toList();
-      final distances = await RouteService.instance.getDistancesToPois(userPos, poiPositions);
-
-      // Routes entre POIs consécutifs (parallèle)
-      final transitFutures = <int, Future<RouteResult>>{};
-      for (int i = 0; i < dayPois.length - 1; i++) {
-        transitFutures[i] = RouteService.instance.getRoute(
-          LatLng(dayPois[i].lat, dayPois[i].lng),
-          LatLng(dayPois[i + 1].lat, dayPois[i + 1].lng),
-        );
-      }
-      final transitEntries = transitFutures.entries.toList();
-      final transitResults = await Future.wait(transitEntries.map((e) => e.value));
-      final transits = <int, RouteResult>{};
-      for (int i = 0; i < transitEntries.length; i++) {
-        transits[transitEntries[i].key] = transitResults[i];
-      }
+      final distances = await RouteService.instance.getDistancesToPois(
+        userPos,
+        poiPositions,
+        transports: trip.transports,
+      );
 
       if (!mounted) return;
       setState(() {
         _poiDistances = distances;
-        _transitRoutes = transits;
       });
+      // Les routes entre POIs consécutifs sont calculées par _computeTransitRoutesForDay (sans GPS)
 
       // Si navigation active, recalculer aussi la route de navigation
       if (_navigationTargetIndex != null && _navigationTargetIndex! < dayPois.length) {
@@ -302,9 +415,14 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
     if (userPos == null || !mounted) return;
 
     try {
+      final target = LatLng(targetPoi.lat, targetPoi.lng);
       final route = await RouteService.instance.getRoute(
         userPos,
-        LatLng(targetPoi.lat, targetPoi.lng),
+        target,
+        mode: TravelMode.forTrip(
+          _currentTrip?.transports ?? const [],
+          RouteService.straightLineDistance(userPos, target),
+        ),
       );
       if (!mounted) return;
       setState(() {
@@ -716,6 +834,13 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
 
   Widget _buildScreen(Trip trip) {
     final dayPois = trip.poisForDay(_selectedDay);
+
+    // Trajets inter-étapes du jour affiché : (re)calculés à chaque changement de voyage ou de jour
+    if (_transitRoutesKey != '${trip.id}|$_selectedDay') {
+      _transitRoutesKey = '${trip.id}|$_selectedDay';
+      _transitRoutes = null; // pas de trajets d'un autre jour / voyage pendant le calcul
+      WidgetsBinding.instance.addPostFrameCallback((_) => _computeTransitRoutesForDay());
+    }
     final center = _currentCenter ??
         (dayPois.isNotEmpty
             ? LatLng(dayPois.first.lat, dayPois.first.lng)
@@ -1261,6 +1386,8 @@ class _ItineraryScreenState extends ConsumerState<ItineraryScreen>
             userPosition: _liveUserPosition,
             poiDistances: _poiDistances,
             transitRoutes: _transitRoutes,
+            transports: trip.transports,
+            tripId: trip.id,
             onNavigateToPoi: _navigateToPoi,
             onDayChanged: (day) {
               setState(() {
