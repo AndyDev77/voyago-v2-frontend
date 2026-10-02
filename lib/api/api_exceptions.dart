@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../core/config/app_environment.dart';
 
 class ApiException implements Exception {
   final String message;
@@ -91,7 +92,9 @@ class ApiException implements Exception {
 
       case DioExceptionType.connectionError:
         return NetworkException(
-          message: 'Impossible de joindre le serveur Voyagooo. Vérifiez que le backend est bien démarré sur le port 3333.',
+          message: AppConfig.isProduction
+              ? 'Impossible de joindre le serveur Voyagooo. Vérifiez votre connexion internet.'
+              : 'Impossible de joindre le serveur Voyagooo (${AppConfig.backendUrl}). Vérifiez que le backend est bien démarré sur le port 3333.',
         );
 
       case DioExceptionType.cancel:

@@ -1,35 +1,10 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
+import '../core/config/app_environment.dart';
 
 class Endpoints {
   Endpoints._();
 
-  // Configuration dynamique de l'hôte Backend
-  static const String _envBackendUrl = String.fromEnvironment('BACKEND_URL');
-
-  // Hôtes Backend (Port NestJS : 3333)
-  // static const String localNetworkBackendUrl = 'http://192.168.1.81:3333';
-  static const String localNetworkBackendUrl = 'http://10.75.1.6:3333'; // Autre réseau
-  static const String androidEmulatorBackendUrl = 'http://10.0.2.2:3333';
-  static const String localhostBackendUrl = 'http://localhost:3333';
-
-  // Utiliser l'IP LAN directe (testé et validé à 100% depuis le smartphone)
-  static const bool useLanIpForDevice = true;
-
-  static String get baseUrl {
-    if (_envBackendUrl.isNotEmpty) {
-      return _envBackendUrl;
-    }
-    if (kIsWeb) {
-      return localhostBackendUrl;
-    }
-    if (Platform.isAndroid) {
-      // 192.168.1.81:3333 est directement accessible par le téléphone (en Wi-Fi ou USB)
-      // sans dépendre d'une règle adb reverse qui s'efface aux reconnexions
-      return localNetworkBackendUrl;
-    }
-    return localhostBackendUrl;
-  }
+  // Hôte Backend selon l'environnement (local ou production), voir AppConfig
+  static String get baseUrl => AppConfig.backendUrl;
 
   // --- HEALTH & DOCS ---
   static const String health = '/api';

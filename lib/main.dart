@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:sizer/sizer.dart';
+import 'core/config/app_environment.dart';
 import 'services/app_rating_service.dart';
 import 'services/storage_service.dart';
 import 'router.dart';
@@ -9,6 +10,7 @@ import 'theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  debugPrint('🌍 Environnement : ${AppConfig.environment.label} → ${AppConfig.backendUrl}');
   await initializeDateFormatting('fr_FR', null);
   await initializeDateFormatting('fr', null);
   await StorageService.instance.init();
@@ -31,6 +33,14 @@ class VoyagoApp extends ConsumerWidget {
           theme: voyagoTheme,
           routerConfig: router,
           debugShowCheckedModeBanner: false,
+          // Bandeau visible hors production pour savoir sur quel backend on travaille
+          builder: AppConfig.isProduction
+              ? null
+              : (context, child) => Banner(
+                    message: AppConfig.environment.label.toUpperCase(),
+                    location: BannerLocation.topEnd,
+                    child: child ?? const SizedBox.shrink(),
+                  ),
         );
       },
     );

@@ -102,7 +102,7 @@ lib/
 ### Prérequis
 - Flutter SDK 3.x
 - Android Studio (émulateur) ou Xcode (iOS)
-- Backend Voyagooo lancé sur port 3333
+- Backend Voyagooo lancé sur port 3333 (ou `--dart-define=APP_ENV=prod` pour utiliser la prod)
 
 ### Étapes
 
@@ -122,25 +122,41 @@ flutter run
 
 ## ⚙️ Configuration
 
-Dans `lib/services/api_service.dart`, l'URL du backend s'adapte automatiquement selon la plateforme ou via `--dart-define` :
+L'app choisit son backend dans `lib/core/config/app_environment.dart` :
 
-```dart
-// IP locale actuelle de la machine : 192.168.1.81 (Port 3333)
+| Environnement | Backend | Quand |
+|---|---|---|
+| **Local** | `http://localhost:3333` (ou IP LAN sur Android) | `flutter run` (debug / profile) |
+| **Production** | `https://api.voyagooo.com` ([docs](https://api.voyagooo.com/api/docs)) | `flutter build ... --release` |
 
-// 1. Émulateur Android (redirection automatique)
-const String androidEmulatorBackendUrl = 'http://10.0.2.2:3333';
+L'environnement est affiché au démarrage dans la console (`🌍 Environnement : ...`) et un bandeau **LOCAL** apparaît dans l'app hors production.
 
-// 2. Vrai téléphone / Appareil physique (Wi-Fi local)
-const String localNetworkBackendUrl = 'http://192.168.1.81:3333';
+Forcer un environnement :
 
-// 3. Simulateur iOS / Web / Desktop
-const String localhostBackendUrl = 'http://localhost:3333';
+```bash
+# App en debug branchée sur la prod
+flutter run --dart-define=APP_ENV=prod
+
+# Build release branché sur le backend local
+flutter build apk --release --dart-define=APP_ENV=local
 ```
 
-> **Astuce :** Vous pouvez aussi surcharger l'URL au lancement sans modifier le code :
-> ```bash
-> flutter run --dart-define=BACKEND_URL=http://192.168.1.81:3333
-> ```
+Surcharger l'URL sans modifier le code (prioritaire sur `APP_ENV`) :
+
+```bash
+flutter run --dart-define=BACKEND_URL=http://192.168.1.81:3333
+```
+
+En local, les URLs par plateforme sont définies dans `AppConfig` :
+
+```dart
+// Vrai téléphone Android (Wi-Fi local)
+static const String localNetworkBackendUrl = 'http://10.75.1.6:3333';
+// Émulateur Android
+static const String androidEmulatorBackendUrl = 'http://10.0.2.2:3333';
+// Simulateur iOS / Web / Desktop
+static const String localhostBackendUrl = 'http://localhost:3333';
+```
 
 ---
 
